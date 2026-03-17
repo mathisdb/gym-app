@@ -262,10 +262,12 @@ function renderBW() {
   const ctx=document.getElementById('bw-chart').getContext('2d');
   if(bwChart) bwChart.destroy();
   const {accent, accentLight} = getAccentColors();
+  const bwCenter=(Math.min(...weights)+Math.max(...weights))/2;
+  const bwHalf=Math.max((Math.max(...weights)-Math.min(...weights))/2+1,5);
   bwChart=new Chart(ctx,{
     type:'line',
     data:{labels,datasets:[{data:weights,borderColor:accent,backgroundColor:accentLight,tension:0.3,pointRadius:4,pointBackgroundColor:accent,borderWidth:2,fill:true}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+' kg'}}},scales:{y:{suggestedMin:Math.min(...weights)-5,suggestedMax:Math.max(...weights)+5,ticks:{font:{size:11},callback:v=>v+'kg'},grid:{color:'rgba(128,128,128,0.1)'}},x:{ticks:{font:{size:10},maxTicksLimit:7},grid:{display:false}}},responsive:true,maintainAspectRatio:false}
+    options:{animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+' kg'}}},scales:{y:{min:Math.floor(bwCenter-bwHalf),max:Math.ceil(bwCenter+bwHalf),ticks:{font:{size:11},callback:v=>v+'kg'},grid:{color:'rgba(128,128,128,0.1)'}},x:{ticks:{font:{size:10},maxTicksLimit:7},grid:{display:false}}},responsive:true,maintainAspectRatio:false}
   });
 }
 
@@ -331,10 +333,12 @@ function renderProgressChart() {
   const ctx=canvas.getContext('2d');
   if(progressChart) progressChart.destroy();
   const {accent, accentLight} = getAccentColors();
+  const pCenter=(Math.min(...data)+Math.max(...data))/2;
+  const pHalf=Math.max((Math.max(...data)-Math.min(...data))/2+1,5);
   progressChart=new Chart(ctx,{
     type:'line',
     data:{labels,datasets:[{data,borderColor:accent,backgroundColor:accentLight,tension:0.3,pointRadius:5,pointBackgroundColor:accent,borderWidth:2,fill:true}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+' kg'}}},scales:{y:{suggestedMin:Math.min(...data)-5,suggestedMax:Math.max(...data)+5,ticks:{font:{size:11},callback:v=>v+'kg'},grid:{color:'rgba(128,128,128,0.1)'}},x:{ticks:{font:{size:10},maxTicksLimit:7},grid:{display:false}}},responsive:true,maintainAspectRatio:false}
+    options:{animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+' kg'}}},scales:{y:{min:Math.floor(pCenter-pHalf),max:Math.ceil(pCenter+pHalf),ticks:{font:{size:11},callback:v=>v+'kg'},grid:{color:'rgba(128,128,128,0.1)'}},x:{ticks:{font:{size:10},maxTicksLimit:7},grid:{display:false}}},responsive:true,maintainAspectRatio:false}
   });
 }
 
