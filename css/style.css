@@ -1,8 +1,8 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 :root {
-  --accent: #3B9EE8;
-  --accent-light: rgba(59,158,232,0.18);
-  --accent-text: #0f2a55;
+  --accent: #E83B3B;
+  --accent-light: rgba(232,59,59,0.18);
+  --accent-text: #550f0f;
   --bg: #f5f5f3;
   --card: #ffffff;
   --border: rgba(0,0,0,0.1);
@@ -20,8 +20,8 @@
     --text: #f0f0f0;
     --text-2: #aaa;
     --text-3: #777;
-    --accent-light: rgba(59,158,232,0.22);
-    --accent-text: #d3eeff;
+    --accent-light: rgba(232,59,59,0.22);
+    --accent-text: #ffd3d3;
   }
 }
 html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; overscroll-behavior: none; }
