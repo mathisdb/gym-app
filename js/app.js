@@ -270,8 +270,8 @@ function renderBW() {
 }
 
 function logBodyweight() {
-  const val=parseFloat(document.getElementById('bw-input').value);
-  if(!val||val<30||val>300){ showToast('Enter a valid weight'); return; }
+  const val=parseFloat(document.getElementById('bw-input').value.replace(',','.'));
+  if(!val||isNaN(val)||val<30||val>300){ showToast('Enter a valid weight'); return; }
   const db=getDB();
   const date=new Date().toISOString().split('T')[0];
   const i=db.bw.findIndex(e=>e.date===date);
