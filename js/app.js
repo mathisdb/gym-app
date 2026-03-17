@@ -265,7 +265,7 @@ function renderBW() {
   bwChart=new Chart(ctx,{
     type:'line',
     data:{labels,datasets:[{data:weights,borderColor:accent,backgroundColor:accentLight,tension:0.3,pointRadius:4,pointBackgroundColor:accent,borderWidth:2,fill:true}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+' kg'}}},scales:{y:{ticks:{font:{size:11},callback:v=>v+'kg'},grid:{color:'rgba(128,128,128,0.1)'}},x:{ticks:{font:{size:10},maxTicksLimit:7},grid:{display:false}}},responsive:true,maintainAspectRatio:false}
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+' kg'}}},scales:{y:{suggestedMin:Math.min(...weights)-5,suggestedMax:Math.max(...weights)+5,ticks:{font:{size:11},callback:v=>v+'kg'},grid:{color:'rgba(128,128,128,0.1)'}},x:{ticks:{font:{size:10},maxTicksLimit:7},grid:{display:false}}},responsive:true,maintainAspectRatio:false}
   });
 }
 
@@ -334,7 +334,7 @@ function renderProgressChart() {
   progressChart=new Chart(ctx,{
     type:'line',
     data:{labels,datasets:[{data,borderColor:accent,backgroundColor:accentLight,tension:0.3,pointRadius:5,pointBackgroundColor:accent,borderWidth:2,fill:true}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+' kg'}}},scales:{y:{ticks:{font:{size:11},callback:v=>v+'kg'},grid:{color:'rgba(128,128,128,0.1)'}},x:{ticks:{font:{size:10},maxTicksLimit:7},grid:{display:false}}},responsive:true,maintainAspectRatio:false}
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+' kg'}}},scales:{y:{suggestedMin:Math.min(...data)-5,suggestedMax:Math.max(...data)+5,ticks:{font:{size:11},callback:v=>v+'kg'},grid:{color:'rgba(128,128,128,0.1)'}},x:{ticks:{font:{size:10},maxTicksLimit:7},grid:{display:false}}},responsive:true,maintainAspectRatio:false}
   });
 }
 
