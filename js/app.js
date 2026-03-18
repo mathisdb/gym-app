@@ -140,13 +140,14 @@ let currentDay = 'push';
 let currentSets = {};
 
 function showTab(t) {
-  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile'][i]===t));
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile','program'][i]===t));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(t==='bodyweight') renderBW();
   if(t==='progress') { populateProgressSelect(); renderProgressChart(); }
   if(t==='history') renderHistory();
   if(t==='profile') renderProfile();
+  if(t==='program') renderProgram();
 }
 
 function startWorkout(day) {
@@ -872,6 +873,402 @@ function toggleObEquip(el) {
     obData.equipment.push(val);
     el.classList.add('selected');
   }
+}
+
+// ============================================================
+// EXERCISE DATABASE  (flat list with muscle tags, used by program generator)
+// ============================================================
+const EXERCISE_DB = [
+  // CHEST
+  {id:'bench',            name:'Bench press',             type:'Barbell',    muscles:['chest','triceps'],             compound:true},
+  {id:'incline_bench',    name:'Incline bench press',     type:'Barbell',    muscles:['chest','shoulders'],           compound:true},
+  {id:'db_bench',         name:'Dumbbell bench press',    type:'Dumbbell',   muscles:['chest','triceps'],             compound:true},
+  {id:'incline_db',       name:'Incline dumbbell press',  type:'Dumbbell',   muscles:['chest','shoulders'],           compound:true},
+  {id:'chest_fly',        name:'Cable chest fly',         type:'Cable',      muscles:['chest'],                       compound:false},
+  {id:'pec_deck',         name:'Pec deck',                type:'Machine',    muscles:['chest'],                       compound:false},
+  {id:'dips',             name:'Dips',                    type:'Bodyweight', muscles:['chest','triceps'],             compound:true},
+  {id:'pushup',           name:'Push-up',                 type:'Bodyweight', muscles:['chest','triceps'],             compound:true},
+  {id:'db_fly',           name:'Dumbbell fly',            type:'Dumbbell',   muscles:['chest'],                       compound:false},
+  // BACK
+  {id:'deadlift',         name:'Deadlift',                type:'Barbell',    muscles:['back','hamstrings','glutes'],  compound:true},
+  {id:'barbell_row',      name:'Barbell row',             type:'Barbell',    muscles:['back','biceps'],               compound:true},
+  {id:'pullup',           name:'Pull-up',                 type:'Bodyweight', muscles:['back','biceps'],               compound:true},
+  {id:'lat_pulldown',     name:'Lat pulldown',            type:'Cable',      muscles:['back','biceps'],               compound:true},
+  {id:'seated_row',       name:'Seated cable row',        type:'Cable',      muscles:['back','biceps'],               compound:true},
+  {id:'db_row',           name:'Dumbbell row',            type:'Dumbbell',   muscles:['back','biceps'],               compound:true},
+  {id:'face_pull',        name:'Face pull',               type:'Cable',      muscles:['back','shoulders'],            compound:false},
+  {id:'cs_row',           name:'Chest-supported row',     type:'Dumbbell',   muscles:['back'],                        compound:false},
+  // SHOULDERS
+  {id:'ohp',              name:'Overhead press',          type:'Barbell',    muscles:['shoulders','triceps'],         compound:true},
+  {id:'db_ohp',           name:'Dumbbell shoulder press', type:'Dumbbell',   muscles:['shoulders','triceps'],         compound:true},
+  {id:'shoulder_machine', name:'Machine shoulder press',  type:'Machine',    muscles:['shoulders'],                   compound:true},
+  {id:'lateral_raise',    name:'Lateral raise',           type:'Dumbbell',   muscles:['shoulders'],                   compound:false},
+  {id:'cable_lateral',    name:'Cable lateral raise',     type:'Cable',      muscles:['shoulders'],                   compound:false},
+  {id:'rear_delt_fly',    name:'Rear delt fly',           type:'Dumbbell',   muscles:['shoulders','back'],            compound:false},
+  // BICEPS
+  {id:'barbell_curl',     name:'Barbell curl',            type:'Barbell',    muscles:['biceps'],                      compound:false},
+  {id:'hammer_curl',      name:'Hammer curl',             type:'Dumbbell',   muscles:['biceps'],                      compound:false},
+  {id:'cable_curl',       name:'Cable curl',              type:'Cable',      muscles:['biceps'],                      compound:false},
+  {id:'incline_curl',     name:'Incline dumbbell curl',   type:'Dumbbell',   muscles:['biceps'],                      compound:false},
+  {id:'concentration_curl',name:'Concentration curl',     type:'Dumbbell',   muscles:['biceps'],                      compound:false},
+  // TRICEPS
+  {id:'tricep_pushdown',  name:'Tricep pushdown',         type:'Cable',      muscles:['triceps'],                     compound:false},
+  {id:'skull_crushers',   name:'Skull crushers',          type:'Barbell',    muscles:['triceps'],                     compound:false},
+  {id:'overhead_ext',     name:'Overhead cable extension',type:'Cable',      muscles:['triceps'],                     compound:false},
+  {id:'db_tricep_ext',    name:'DB tricep extension',     type:'Dumbbell',   muscles:['triceps'],                     compound:false},
+  {id:'close_grip',       name:'Close-grip bench press',  type:'Barbell',    muscles:['triceps','chest'],             compound:true},
+  // QUADS
+  {id:'squat',            name:'Squat',                   type:'Barbell',    muscles:['quads','glutes'],              compound:true},
+  {id:'front_squat',      name:'Front squat',             type:'Barbell',    muscles:['quads'],                       compound:true},
+  {id:'leg_press',        name:'Leg press',               type:'Machine',    muscles:['quads','glutes'],              compound:true},
+  {id:'hack_squat',       name:'Hack squat',              type:'Machine',    muscles:['quads'],                       compound:true},
+  {id:'goblet_squat',     name:'Goblet squat',            type:'Dumbbell',   muscles:['quads','glutes'],              compound:true},
+  {id:'lunges',           name:'Lunges',                  type:'Dumbbell',   muscles:['quads','glutes'],              compound:true},
+  {id:'split_squat',      name:'Bulgarian split squat',   type:'Dumbbell',   muscles:['quads','glutes'],              compound:true},
+  {id:'leg_ext',          name:'Leg extension',           type:'Machine',    muscles:['quads'],                       compound:false},
+  {id:'bw_squat',         name:'Bodyweight squat',        type:'Bodyweight', muscles:['quads','glutes'],              compound:true},
+  // HAMSTRINGS
+  {id:'rdl',              name:'Romanian deadlift',       type:'Barbell',    muscles:['hamstrings','glutes'],         compound:true},
+  {id:'db_rdl',           name:'Dumbbell RDL',            type:'Dumbbell',   muscles:['hamstrings','glutes'],         compound:true},
+  {id:'leg_curl',         name:'Leg curl',                type:'Machine',    muscles:['hamstrings'],                  compound:false},
+  {id:'nordic_curl',      name:'Nordic curl',             type:'Bodyweight', muscles:['hamstrings'],                  compound:false},
+  {id:'good_morning',     name:'Good morning',            type:'Barbell',    muscles:['hamstrings','back'],           compound:true},
+  // GLUTES
+  {id:'hip_thrust',       name:'Hip thrust',              type:'Barbell',    muscles:['glutes','hamstrings'],         compound:true},
+  {id:'db_hip_thrust',    name:'Dumbbell hip thrust',     type:'Dumbbell',   muscles:['glutes'],                      compound:true},
+  {id:'cable_kickback',   name:'Cable kickback',          type:'Cable',      muscles:['glutes'],                      compound:false},
+  {id:'glute_bridge',     name:'Glute bridge',            type:'Bodyweight', muscles:['glutes'],                      compound:false},
+  // CALVES
+  {id:'calf_raise',       name:'Calf raise',              type:'Machine',    muscles:['calves'],                      compound:false},
+  {id:'standing_calf',    name:'Standing calf raise',     type:'Barbell',    muscles:['calves'],                      compound:false},
+  {id:'seated_calf',      name:'Seated calf raise',       type:'Dumbbell',   muscles:['calves'],                      compound:false},
+  {id:'bw_calf_raise',    name:'Bodyweight calf raise',   type:'Bodyweight', muscles:['calves'],                      compound:false},
+];
+
+// ============================================================
+// SPLIT TEMPLATES
+// ============================================================
+// muscles object: { muscleName: baseExerciseCount }
+// baseExerciseCount is scaled down for beginners before selection
+const SPLIT_TEMPLATES = {
+  fullbody: {
+    2: [
+      {id:'fb_a', label:'Full Body A', dayType:'full_body',
+       muscles:{quads:2, chest:2, back:2, hamstrings:1, shoulders:1}},
+      {id:'fb_b', label:'Full Body B', dayType:'full_body',
+       muscles:{hamstrings:2, glutes:2, back:2, chest:1, biceps:1}},
+    ],
+    3: [
+      {id:'fb_a', label:'Full Body A', dayType:'full_body',
+       muscles:{quads:2, chest:2, back:2, hamstrings:1}},
+      {id:'fb_b', label:'Full Body B', dayType:'full_body',
+       muscles:{hamstrings:2, glutes:1, back:2, chest:1, triceps:1, biceps:1}},
+      {id:'fb_c', label:'Full Body C', dayType:'full_body',
+       muscles:{quads:1, shoulders:2, back:2, chest:1, biceps:1, calves:1}},
+    ],
+  },
+  upperlower: {
+    4: [
+      {id:'upper_a', label:'Upper A', dayType:'upper',
+       muscles:{chest:2, back:2, shoulders:1, triceps:1, biceps:1}},
+      {id:'lower_a', label:'Lower A', dayType:'lower',
+       muscles:{quads:3, hamstrings:2, glutes:1, calves:1}},
+      {id:'upper_b', label:'Upper B', dayType:'upper',
+       muscles:{back:2, chest:2, shoulders:2, biceps:1, triceps:1}},
+      {id:'lower_b', label:'Lower B', dayType:'lower',
+       muscles:{hamstrings:2, glutes:2, quads:2, calves:1}},
+    ],
+  },
+  ppl: {
+    5: [
+      {id:'push',  label:'Push',  dayType:'push',  muscles:{chest:3, shoulders:2, triceps:2}},
+      {id:'pull',  label:'Pull',  dayType:'pull',  muscles:{back:3, biceps:2, shoulders:1}},
+      {id:'legs',  label:'Legs',  dayType:'legs',  muscles:{quads:3, hamstrings:2, glutes:1, calves:1}},
+      {id:'upper', label:'Upper', dayType:'upper', muscles:{chest:2, back:2, shoulders:2, biceps:1, triceps:1}},
+      {id:'lower', label:'Lower', dayType:'lower', muscles:{quads:2, hamstrings:2, glutes:2, calves:1}},
+    ],
+    6: [
+      {id:'push_a', label:'Push A', dayType:'push', muscles:{chest:3, shoulders:2, triceps:2}},
+      {id:'pull_a', label:'Pull A', dayType:'pull', muscles:{back:3, biceps:2, shoulders:1}},
+      {id:'legs_a', label:'Legs A', dayType:'legs', muscles:{quads:3, hamstrings:2, glutes:1, calves:1}},
+      {id:'push_b', label:'Push B', dayType:'push', muscles:{chest:2, shoulders:3, triceps:2}},
+      {id:'pull_b', label:'Pull B', dayType:'pull', muscles:{back:2, biceps:2, shoulders:2}},
+      {id:'legs_b', label:'Legs B', dayType:'legs', muscles:{hamstrings:3, glutes:2, quads:2, calves:1}},
+    ],
+  },
+};
+
+// Weekly sets per muscle targets (used for validation/display)
+const WEEKLY_SETS_TARGET = {
+  beginner:     {min:10, max:12},
+  intermediate: {min:14, max:18},
+  advanced:     {min:18, max:22},
+};
+
+// ============================================================
+// PROGRAM GENERATION
+// ============================================================
+function getSplitType(days) {
+  if (days <= 3) return 'fullbody';
+  if (days === 4) return 'upperlower';
+  return 'ppl';
+}
+
+function getRepScheme(goal, experience) {
+  const schemes = {
+    muscle:   {beginner:{sets:3,reps:'8-12'},  intermediate:{sets:4,reps:'8-12'},  advanced:{sets:4,reps:'6-12'}},
+    weight:   {beginner:{sets:3,reps:'12-15'}, intermediate:{sets:3,reps:'12-15'}, advanced:{sets:4,reps:'12-15'}},
+    strength: {beginner:{sets:3,reps:'5-8'},   intermediate:{sets:4,reps:'4-6'},   advanced:{sets:5,reps:'3-5'}},
+  };
+  return (schemes[goal] || schemes.muscle)[experience] || {sets:3, reps:'8-12'};
+}
+
+// Map exercise type → profile equipment key
+function equipmentAvailable(type, userEquip) {
+  const map = {Dumbbell:'Dumbbells', Cable:'Cables', Machine:'Machines', Barbell:'Barbell', Bodyweight:'Bodyweight'};
+  return userEquip.includes(map[type] || type);
+}
+
+function lookupExercise(id) {
+  return EXERCISE_DB.find(e => e.id === id) || ALL_EX.find(e => e.id === id) || null;
+}
+
+function parseRepsForInput(repsStr) {
+  // '8-12' → 8,  '3-5' → 3,  '10' → 10
+  return parseInt(repsStr.split('-')[0]) || 10;
+}
+
+function getCurrentProgram() {
+  try { return JSON.parse(localStorage.getItem('currentProgram') || 'null'); }
+  catch { return null; }
+}
+function saveCurrentProgram(p) { localStorage.setItem('currentProgram', JSON.stringify(p)); }
+
+function generateProgram(profile, seed) {
+  const {goal, experience, trainingDays, equipment} = profile;
+  const userEquip = (equipment && equipment.length) ? equipment : ['Bodyweight'];
+  const seed_ = seed || 0;
+
+  const splitType = getSplitType(trainingDays || 3);
+
+  // Pick the closest template key (handles edge cases like trainingDays=5 but only 6-day template exists)
+  const splitTemplates = SPLIT_TEMPLATES[splitType];
+  const templateKey = Object.keys(splitTemplates).map(Number)
+    .sort((a,b) => Math.abs(a-(trainingDays||3)) - Math.abs(b-(trainingDays||3)))[0];
+  const templates = splitTemplates[templateKey];
+
+  const repScheme = getRepScheme(goal, experience);
+
+  // Scale exercises-per-muscle by experience
+  const expScale = {beginner:0.5, intermediate:0.75, advanced:1.0}[experience] || 0.7;
+
+  const days = templates.map((template, dayIdx) => {
+    const exercises = [];
+    const usedIds = new Set();
+
+    Object.entries(template.muscles).forEach(([muscle, baseCount]) => {
+      const count = Math.max(1, Math.round(baseCount * expScale));
+
+      // Filter by primary muscle + available equipment
+      const candidates = EXERCISE_DB.filter(ex =>
+        ex.muscles[0] === muscle &&
+        equipmentAvailable(ex.type, userEquip) &&
+        !usedIds.has(ex.id)
+      );
+      if (!candidates.length) return;
+
+      // Compounds first, then stable alphabetical sort
+      candidates.sort((a, b) => {
+        if (b.compound !== a.compound) return b.compound ? 1 : -1;
+        return a.name.localeCompare(b.name);
+      });
+
+      // Rotate by (dayIdx + seed) so different days and re-generates pick different exercises
+      const rot = (dayIdx + seed_) % candidates.length;
+      const rotated = [...candidates.slice(rot), ...candidates.slice(0, rot)];
+
+      rotated.slice(0, count).forEach(ex => {
+        usedIds.add(ex.id);
+        exercises.push({
+          id: ex.id, name: ex.name, type: ex.type,
+          muscles: ex.muscles,
+          sets: repScheme.sets,
+          reps: repScheme.reps,
+        });
+      });
+    });
+
+    return {...template, exercises};
+  });
+
+  const splitLabels = {fullbody:'Full Body', upperlower:'Upper / Lower', ppl:'Push / Pull / Legs'};
+
+  return {
+    split: splitType, splitLabel: splitLabels[splitType],
+    goal, experience, trainingDays, seed: seed_,
+    generatedAt: new Date().toISOString().split('T')[0],
+    days,
+  };
+}
+
+// Estimate weekly sets per primary muscle group across all training days
+function calculateWeeklyVolume(days) {
+  const vol = {};
+  days.forEach(day => {
+    day.exercises.forEach(ex => {
+      const m = ex.muscles[0];
+      vol[m] = (vol[m] || 0) + ex.sets;
+    });
+  });
+  return vol;
+}
+
+// ============================================================
+// PROGRAM TAB
+// ============================================================
+function renderProgram() {
+  const profile = getUserProfile();
+  const noProf = document.getElementById('prog-no-profile');
+  const content = document.getElementById('prog-content');
+
+  if (!profile) {
+    noProf.style.display = 'block';
+    content.style.display = 'none';
+    return;
+  }
+  noProf.style.display = 'none';
+  content.style.display = 'block';
+
+  let program = getCurrentProgram();
+  // Re-generate if profile changed since last generation
+  if (!program ||
+      program.trainingDays !== profile.trainingDays ||
+      program.experience   !== profile.experience ||
+      program.goal         !== profile.goal) {
+    program = generateProgram(profile, 0);
+    saveCurrentProgram(program);
+  }
+
+  renderProgramContent(program, profile);
+}
+
+function renderProgramContent(program, profile) {
+  const goalLabels = {muscle:'Build Muscle', weight:'Lose Weight', strength:'Gain Strength'};
+  const expLabels  = {beginner:'Beginner', intermediate:'Intermediate', advanced:'Advanced'};
+
+  document.getElementById('prog-split-name').textContent = program.splitLabel;
+  document.getElementById('prog-meta').textContent =
+    `${goalLabels[program.goal]||program.goal} · ${expLabels[program.experience]||program.experience} · ${program.trainingDays} days/week`;
+  document.getElementById('prog-date').textContent = 'Generated ' + program.generatedAt;
+
+  // Weekly volume bars
+  const vol = calculateWeeklyVolume(program.days);
+  const target = WEEKLY_SETS_TARGET[program.experience] || {min:12, max:18};
+  const muscleOrder = ['chest','back','shoulders','biceps','triceps','quads','hamstrings','glutes','calves'];
+  const volHTML = muscleOrder
+    .filter(m => vol[m])
+    .map(m => {
+      const sets = vol[m];
+      const pct = Math.min(100, Math.round((sets / target.max) * 100));
+      const label = m.charAt(0).toUpperCase() + m.slice(1);
+      const statusColor = sets < target.min ? '#f59e0b' : sets <= target.max ? 'var(--accent)' : '#22c55e';
+      return `<div class="vol-row">
+        <span class="vol-label">${label}</span>
+        <div class="vol-bar-wrap"><div class="vol-bar" style="width:${pct}%;background:${statusColor}"></div></div>
+        <span class="vol-num">${sets} sets</span>
+      </div>`;
+    }).join('');
+  document.getElementById('prog-volume-list').innerHTML = volHTML;
+
+  // Day cards
+  const daysList = document.getElementById('prog-days-list');
+  daysList.innerHTML = '';
+  program.days.forEach((day, i) => daysList.appendChild(buildProgramDayCard(day, i)));
+  lucide.createIcons();
+}
+
+function buildProgramDayCard(day, idx) {
+  const div = document.createElement('div');
+  div.className = 'card prog-day-card';
+
+  // Collect unique primary muscles for subtitle
+  const muscleSet = [];
+  day.exercises.forEach(ex => {
+    if (ex.muscles[0] && !muscleSet.includes(ex.muscles[0])) muscleSet.push(ex.muscles[0]);
+  });
+  const muscleLabel = muscleSet.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(' · ');
+
+  const exListHTML = day.exercises.map(ex =>
+    `<div class="prog-ex-row">
+      <div class="prog-ex-left">
+        <span class="prog-ex-name">${ex.name}</span>
+        <span class="prog-ex-type">${ex.type}</span>
+      </div>
+      <span class="prog-ex-scheme">${ex.sets}×${ex.reps}</span>
+    </div>`
+  ).join('');
+
+  div.innerHTML = `
+    <div class="prog-day-header">
+      <div>
+        <div class="prog-day-label">Day ${idx+1} — <span class="prog-day-tag">${day.label}</span></div>
+        <div class="prog-day-muscles">${muscleLabel}</div>
+      </div>
+      <button class="prog-start-btn" onclick="startProgramWorkout(${idx})">
+        <i data-lucide="play" style="width:13px;height:13px;"></i> Start
+      </button>
+    </div>
+    <div class="prog-ex-list">${exListHTML}</div>`;
+
+  return div;
+}
+
+function startProgramWorkout(dayIdx) {
+  const program = getCurrentProgram();
+  if (!program) { showToast('No program — generate one first'); return; }
+  const day = program.days[dayIdx];
+  if (!day || !day.exercises.length) { showToast('No exercises in this day'); return; }
+
+  currentDay = day.dayType || 'push';
+  currentSets = {};
+
+  const db = getDB();
+  const list = document.getElementById('exercises-list');
+  list.innerHTML = '';
+
+  day.exercises.forEach(ex => {
+    const lastW = db.workouts.slice().reverse().find(w => w.sets && w.sets[ex.id]);
+    let initialSets;
+    if (lastW) {
+      initialSets = JSON.parse(JSON.stringify(lastW.sets[ex.id]));
+    } else {
+      const defaultReps = parseRepsForInput(ex.reps);
+      initialSets = Array(ex.sets).fill(null).map(() => ({reps: defaultReps, weight: ''}));
+    }
+    currentSets[ex.id] = JSON.parse(JSON.stringify(initialSets));
+    const fullEx = lookupExercise(ex.id) || ex;
+    list.appendChild(buildExBlock(
+      {id: ex.id, name: ex.name, type: ex.type, muscles: ex.muscles},
+      initialSets,
+      lastW ? lastW.date : null
+    ));
+  });
+
+  showTab('workout');
+  document.getElementById('workout-choose').style.display = 'none';
+  document.getElementById('workout-logging').style.display = 'block';
+  document.getElementById('workout-day-label').textContent = day.label;
+  showToast(`${day.label} loaded — let's go!`);
+}
+
+function regenerateProgram() {
+  const profile = getUserProfile();
+  if (!profile) { showToast('Complete your profile first'); return; }
+  const seed = (getCurrentProgram()?.seed || 0) + 1;
+  const program = generateProgram(profile, seed);
+  saveCurrentProgram(program);
+  renderProgramContent(program, profile);
+  showToast('New program generated!');
 }
 
 // ============================================================
