@@ -160,11 +160,147 @@ function startWorkout(day) {
 }
 
 function backToChoose() {
+  stopRestTimer(true);
   document.getElementById('workout-logging').style.display = 'none';
   document.getElementById('workout-choose').style.display = 'block';
   document.getElementById('exercises-list').innerHTML = '';
   hideAddExerciseForm();
   currentSets = {};
+}
+
+// ============================================================
+// REST TIMER
+// ============================================================
+const RT_CIRCUMFERENCE = 2 * Math.PI * 32; // 201.06
+
+const rt = { remaining: 0, total: 0, intervalId: null, active: false };
+
+function getRestTimePref() {
+  const v = parseInt(localStorage.getItem('restTimeSetting'));
+  return v > 0 ? v : null;
+}
+function setRestTimePref(v) {
+  if (v > 0) localStorage.setItem('restTimeSetting', String(v));
+  else localStorage.removeItem('restTimeSetting');
+}
+function onSaveRestTimePref() {
+  const v = parseInt(document.getElementById('rest-time-input')?.value);
+  setRestTimePref(v || 0);
+  showToast(v > 0 ? `Rest timer set to ${v}s` : 'Using goal-based defaults');
+}
+
+function getRestDuration() {
+  const pref = getRestTimePref();
+  if (pref) return pref;
+  const profile = getUserProfile();
+  return {muscle: 90, strength: 180, weight: 60}[profile?.goal] || 90;
+}
+
+function startRestTimer(duration) {
+  if (rt.intervalId) clearInterval(rt.intervalId);
+  rt.total     = duration;
+  rt.remaining = duration;
+  rt.active    = true;
+
+  const widget = document.getElementById('rest-timer');
+  // Reset arc to full before animating so transition fires correctly
+  const arc = document.getElementById('rt-arc');
+  if (arc) {
+    arc.style.transition = 'none';
+    arc.style.strokeDasharray  = String(RT_CIRCUMFERENCE);
+    arc.style.strokeDashoffset = '0';
+    // Re-enable transition on next frame
+    requestAnimationFrame(() => { arc.style.transition = ''; });
+  }
+
+  widget.style.display = 'flex';
+  widget.classList.add('rt-active');
+  widget.classList.remove('rt-warning', 'rt-hiding');
+  updateTimerDisplay();
+
+  rt.intervalId = setInterval(() => {
+    rt.remaining--;
+    updateTimerDisplay();
+    if (rt.remaining <= 0) {
+      stopRestTimer(false);
+      beepSound();
+      if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
+    }
+  }, 1000);
+}
+
+function stopRestTimer(isSkip) {
+  if (rt.intervalId) { clearInterval(rt.intervalId); rt.intervalId = null; }
+  rt.active = false;
+
+  const widget = document.getElementById('rest-timer');
+  widget.classList.remove('rt-active', 'rt-warning');
+  widget.classList.add('rt-hiding');
+  setTimeout(() => {
+    widget.style.display = 'none';
+    widget.classList.remove('rt-hiding');
+    const arc = document.getElementById('rt-arc');
+    if (arc) { arc.style.transition = 'none'; arc.style.strokeDashoffset = '0'; }
+  }, 280);
+}
+
+function adjustRestTimer(delta) {
+  if (!rt.active && !rt.intervalId) { startRestTimer(getRestDuration() + delta); return; }
+  rt.remaining = Math.max(5, rt.remaining + delta);
+  if (rt.remaining > rt.total) rt.total = rt.remaining;
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+  const rem  = Math.max(0, rt.remaining);
+  const mins = Math.floor(rem / 60);
+  const secs = rem % 60;
+  const el   = document.getElementById('rt-time');
+  if (el) el.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+  const arc = document.getElementById('rt-arc');
+  if (arc) {
+    const offset = RT_CIRCUMFERENCE * (1 - rem / Math.max(rt.total, 1));
+    arc.style.strokeDashoffset = String(offset);
+  }
+
+  const widget = document.getElementById('rest-timer');
+  if (widget) widget.classList.toggle('rt-warning', rem > 0 && rem <= 10);
+}
+
+function logSetDone(exId, idx) {
+  // Visual: flash row green, turn done button accent
+  const row = document.getElementById('srow-' + exId + '-' + idx);
+  if (row) {
+    row.classList.remove('set-logged');
+    void row.offsetWidth; // force reflow so animation re-triggers
+    row.classList.add('set-logged');
+    const btn = row.querySelector('.done-set');
+    if (btn) btn.classList.add('done-set-active');
+  }
+  startRestTimer(getRestDuration());
+}
+
+function beepSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    // Two-tone chime: lower then higher
+    [[0, 660], [0.17, 880]].forEach(([delay, freq]) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + delay;
+      gain.gain.setValueAtTime(0.45, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      osc.start(t);
+      osc.stop(t + 0.25);
+    });
+  } catch(e) {}
 }
 
 function loadDayExercises() {
@@ -219,7 +355,7 @@ function buildExBlock(ex, initialSets, lastDate, lastSets) {
     <div class="ex-body" id="body-${ex.id}">
       <div class="progression-panel">${progressionHTML}</div>
       <div class="sets-header">
-        <span>#</span><span>Reps</span><span>kg</span><span></span>
+        <span>#</span><span>Reps</span><span>kg</span><span class="sets-hdr-done">✓</span><span></span>
       </div>
       <div id="sets-${ex.id}"></div>
       <button class="add-set-btn" onclick="addSet('${ex.id}')" style="display:flex;align-items:center;gap:4px;"><i data-lucide="plus" style="width:14px;height:14px;"></i> Add set</button>
@@ -237,6 +373,7 @@ function renderSetRow(exId, idx) {
     <span class="set-num">${idx+1}</span>
     <input type="number" inputmode="numeric" min="1" max="100" value="${s.reps||''}" placeholder="10" oninput="updateSet('${exId}',${idx},'reps',this.value)">
     <input type="number" inputmode="decimal" min="0" max="500" step="0.5" value="${s.weight||''}" placeholder="kg" oninput="updateSet('${exId}',${idx},'weight',this.value)">
+    <button class="done-set" onclick="logSetDone('${exId}',${idx})" title="Set done — start rest timer">✓</button>
     <button class="del-set" onclick="removeSet('${exId}',${idx})">×</button>`;
 }
 
@@ -276,6 +413,7 @@ function toggleEx(exId) {
 }
 
 function saveWorkout() {
+  stopRestTimer(true);
   const filled = Object.entries(currentSets).filter(([,sets])=>sets.some(s=>s.weight||s.reps));
   if(!filled.length){ showToast('No exercises logged'); return; }
   const db=getDB();
@@ -717,6 +855,10 @@ function renderProfile() {
     <div class="prof-row"><span class="prof-label">Training days</span><span class="prof-val">${profile.trainingDays||'—'} days / week</span></div>
     <div class="prof-row"><span class="prof-label">Equipment</span><span class="prof-val">${(profile.equipment||[]).join(', ')||'—'}</span></div>
     <div class="prof-row"><span class="prof-label">Body weight</span><span class="prof-val">${profile.bodyWeight||'—'} kg</span></div>`;
+
+  // Populate rest timer input
+  const rtInput = document.getElementById('rest-time-input');
+  if (rtInput) rtInput.value = getRestTimePref() || '';
 }
 
 function editProfile() {

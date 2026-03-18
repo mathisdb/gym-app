@@ -353,7 +353,23 @@
     <button class="save-btn" onclick="editProfile()" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px;">
       <i data-lucide="pencil" style="width:16px;height:16px;"></i> Edit Profile
     </button>
-    <div class="card" style="margin-top:16px;">
+    <div class="card" style="margin-top:8px;">
+      <div class="card-title">Rest Timer</div>
+      <div class="prof-row">
+        <span class="prof-label">Duration</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="number" id="rest-time-input" class="form-input"
+            style="width:72px;text-align:center;padding:7px 6px;"
+            placeholder="auto" min="10" max="600" inputmode="numeric">
+          <span style="font-size:13px;color:var(--text-3);">sec</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin:6px 0 10px;">
+        Leave blank to use goal-based defaults · Muscle 90s · Strength 180s · Fat loss 60s
+      </div>
+      <button class="load-btn" style="width:100%;" onclick="onSaveRestTimePref()">Save timer setting</button>
+    </div>
+    <div class="card" style="margin-top:8px;">
       <div class="card-title">App Data</div>
       <button class="danger-btn" onclick="clearAllData()">
         <i data-lucide="trash-2" style="width:15px;height:15px;"></i> Clear all workout data
@@ -462,6 +478,25 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- REST TIMER WIDGET -->
+<div id="rest-timer" class="rest-timer">
+  <div class="rt-ring-wrap">
+    <svg class="rt-svg" viewBox="0 0 80 80" aria-hidden="true">
+      <circle class="rt-track" cx="40" cy="40" r="32"/>
+      <circle class="rt-arc"   cx="40" cy="40" r="32" id="rt-arc"/>
+    </svg>
+    <div class="rt-center">
+      <span class="rt-label">REST</span>
+      <span class="rt-time" id="rt-time">1:30</span>
+    </div>
+  </div>
+  <div class="rt-actions">
+    <button class="rt-btn" onclick="adjustRestTimer(-30)">−30</button>
+    <button class="rt-btn rt-skip" onclick="stopRestTimer(true)">Skip</button>
+    <button class="rt-btn" onclick="adjustRestTimer(+30)">+30</button>
+  </div>
+</div>
 
 <!-- GUIDE MODAL -->
 <div class="guide-backdrop" id="guide-backdrop" onclick="closeGuide()"></div>
