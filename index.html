@@ -247,6 +247,9 @@
       <div class="workout-logging-header">
         <button class="back-btn" onclick="backToChoose()"><i data-lucide="arrow-left" class="back-icon"></i> Back</button>
         <span class="workout-day-title" id="workout-day-label"></span>
+        <button class="ss-chain-btn" id="ss-chain-btn" onclick="enterLinkMode()" title="Group as superset">
+          <i data-lucide="link-2" style="width:16px;height:16px;"></i>
+        </button>
       </div>
       <div class="card">
         <button class="load-btn" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="showAddExerciseForm()"><i data-lucide="plus" style="width:16px;height:16px;"></i> Add exercise</button>
@@ -273,6 +276,13 @@
             <button class="load-btn" style="flex:1" onclick="addCustomExercise()">Save</button>
             <button class="load-btn" style="flex:1; background: rgba(0,0,0,0.08); color: var(--text);" onclick="hideAddExerciseForm()">Cancel</button>
           </div>
+        </div>
+      </div>
+      <div id="ss-link-bar" class="ss-link-bar" style="display:none">
+        <span class="ss-link-info" id="ss-link-info">Tap 2–3 exercises to group</span>
+        <div style="display:flex;gap:6px;">
+          <button class="ss-confirm-btn" id="ss-confirm-btn" onclick="confirmLink()" disabled>Link</button>
+          <button class="ss-cancel-btn" onclick="cancelLinkMode()">Cancel</button>
         </div>
       </div>
       <div id="exercises-list"></div>

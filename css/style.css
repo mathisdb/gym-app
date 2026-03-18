@@ -61,6 +61,7 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
 
 /* Workout logging header */
 .workout-logging-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-top: 4px; }
+.workout-day-title { flex: 1; }
 .back-btn { background: none; border: none; color: var(--accent); font-size: 15px; font-weight: 500; cursor: pointer; padding: 4px 0; font-family: inherit; display: flex; align-items: center; gap: 4px; }
 .back-icon { width: 18px; height: 18px; }
 .workout-day-title { font-size: 20px; font-weight: 700; }
@@ -92,6 +93,189 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
 .del-ex-btn:hover { background: rgba(0,0,0,0.08); }
 .add-set-btn { margin-top: 4px; padding: 8px 14px; background: var(--accent-light); color: var(--accent-text); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; }
 .last-session { font-size: 11px; color: var(--text-3); margin-bottom: 10px; padding: 6px 10px; background: var(--bg); border-radius: var(--radius-sm); }
+
+/* ============================================================
+   SUPERSETS & CIRCUITS
+   ============================================================ */
+
+/* Chain / link button in workout header */
+.ss-chain-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-3);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.ss-chain-btn:active { background: var(--accent-light); }
+.ss-chain-btn.ss-chain-active {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Link action bar (shown while selecting exercises) */
+.ss-link-bar {
+  background: var(--card);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  animation: ss-bar-in 0.18s ease;
+}
+@keyframes ss-bar-in {
+  from { opacity: 0; transform: translateY(-5px); }
+  to   { opacity: 1; transform: none; }
+}
+.ss-link-info {
+  font-size: 13px;
+  color: var(--text-2);
+  flex: 1;
+}
+.ss-confirm-btn {
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.ss-confirm-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.ss-confirm-btn:not(:disabled):active { opacity: 0.75; }
+.ss-cancel-btn {
+  padding: 8px 11px;
+  background: var(--bg);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Selection circle (shown per exercise block in link mode) */
+.ss-sel-indicator {
+  display: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-right: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: transparent;
+  background: transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ss-link-mode .ss-sel-indicator { display: flex; }
+.ss-link-mode .ex-block.ss-selected .ss-sel-indicator {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+/* Dim already-grouped blocks in link mode */
+.ss-link-mode .superset-group .ex-block .ss-sel-indicator { display: none; }
+
+/* Superset group wrapper */
+.superset-group {
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--accent-light);
+  padding: 0 0 4px 6px;
+  margin-bottom: 10px;
+}
+.superset-group .ex-block {
+  margin-bottom: 4px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.superset-group .ex-block:last-child { margin-bottom: 0; }
+
+/* Group header row */
+.ss-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 5px 2px;
+}
+.ss-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--accent);
+  color: #fff;
+  flex-shrink: 0;
+}
+.ss-badge-circuit { background: #7c3aed; }
+
+.ss-progress-text {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+.ss-unlink-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  -webkit-tap-highlight-color: transparent;
+}
+.ss-unlink-btn:active { color: var(--accent); }
+
+/* History superset badge */
+.hc-ss-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: var(--accent-light);
+  color: var(--accent-text);
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+/* Program SS badge */
+.prog-ss-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 99px;
+  background: var(--accent-light);
+  color: var(--accent-text);
+  margin-right: 4px;
+}
 
 /* Save button */
 .save-btn { width: 100%; padding: 15px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 4px; letter-spacing: -0.2px; font-family: inherit; }

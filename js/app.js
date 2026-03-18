@@ -138,6 +138,11 @@ function showToast(msg) {
 
 let currentDay = 'push';
 let currentSets = {};
+let currentSupersets = [];   // [[exId, exId], ...] — active groups this session
+let currentExercises = null; // null = use day lookup; set for program workouts
+let ssLinkMode = false;
+let ssLinkSelected = [];
+let ssRoundDone = {};        // gIdx → Set of exIds completed in current round
 
 function showTab(t) {
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile','program','analytics'][i]===t));
@@ -161,6 +166,10 @@ function startWorkout(day) {
 
 function backToChoose() {
   stopRestTimer(true);
+  cancelLinkMode();
+  currentSupersets = [];
+  ssRoundDone = {};
+  currentExercises = null;
   document.getElementById('workout-logging').style.display = 'none';
   document.getElementById('workout-choose').style.display = 'block';
   document.getElementById('exercises-list').innerHTML = '';
@@ -269,16 +278,39 @@ function updateTimerDisplay() {
 }
 
 function logSetDone(exId, idx) {
-  // Visual: flash row green, turn done button accent
   const row = document.getElementById('srow-' + exId + '-' + idx);
   if (row) {
     row.classList.remove('set-logged');
-    void row.offsetWidth; // force reflow so animation re-triggers
+    void row.offsetWidth;
     row.classList.add('set-logged');
     const btn = row.querySelector('.done-set');
     if (btn) btn.classList.add('done-set-active');
   }
-  startRestTimer(getRestDuration());
+
+  const gIdx = currentSupersets.findIndex(g => g.includes(exId));
+  if (gIdx !== -1) {
+    // Superset: only fire timer after all exercises in the group have done a set
+    if (!ssRoundDone[gIdx]) ssRoundDone[gIdx] = new Set();
+    ssRoundDone[gIdx].add(exId);
+    updateSupersetProgress(gIdx);
+
+    if (ssRoundDone[gIdx].size >= currentSupersets[gIdx].length) {
+      ssRoundDone[gIdx] = new Set(); // reset for next round
+      updateSupersetProgress(gIdx);
+      startRestTimer(getRestDuration());
+    }
+    // else: mid-superset — skip to next exercise, no rest timer
+  } else {
+    startRestTimer(getRestDuration());
+  }
+}
+
+function updateSupersetProgress(gIdx) {
+  const el = document.getElementById('ss-prog-' + gIdx);
+  if (!el) return;
+  const done  = ssRoundDone[gIdx] ? ssRoundDone[gIdx].size : 0;
+  const total = (currentSupersets[gIdx] || []).length;
+  el.textContent = done > 0 ? `${done}/${total} done` : '';
 }
 
 function beepSound() {
@@ -304,19 +336,80 @@ function beepSound() {
 }
 
 function loadDayExercises() {
-  const exs = getExercisesForDay(currentDay);
   currentSets = {};
+  currentSupersets = [];
+  ssRoundDone = {};
+  currentExercises = null;
+  const exs = getExercisesForDay(currentDay);
+  const db = getDB();
+  exs.forEach(ex => {
+    const lastW = db.workouts.slice().reverse().find(w => w.sets && w.sets[ex.id]);
+    const lastSets = lastW ? JSON.parse(JSON.stringify(lastW.sets[ex.id])) : null;
+    currentSets[ex.id] = JSON.parse(JSON.stringify(buildSuggestedSets(ex, lastSets)));
+  });
+  reRenderExerciseList();
+}
+
+// Rebuild exercise DOM from currentSets + currentSupersets (preserves input values)
+function reRenderExerciseList() {
+  const exs = currentExercises || getExercisesForDay(currentDay);
   const db = getDB();
   const list = document.getElementById('exercises-list');
   list.innerHTML = '';
+
+  // Map exId → group index
+  const inGroup = {};
+  currentSupersets.forEach((g, i) => g.forEach(id => { inGroup[id] = i; }));
+  const renderedGroups = new Set();
+
   exs.forEach(ex => {
-    const lastW = db.workouts.slice().reverse().find(w=>w.sets&&w.sets[ex.id]);
-    const lastSets = lastW ? JSON.parse(JSON.stringify(lastW.sets[ex.id])) : null;
-    const lastDate = lastW ? lastW.date : null;
-    const initialSets = buildSuggestedSets(ex, lastSets);
-    currentSets[ex.id] = JSON.parse(JSON.stringify(initialSets));
-    list.appendChild(buildExBlock(ex, initialSets, lastDate, lastSets));
+    const gIdx = inGroup[ex.id];
+    if (gIdx !== undefined) {
+      if (renderedGroups.has(gIdx)) return;
+      renderedGroups.add(gIdx);
+      list.appendChild(buildSupersetGroupDOM(gIdx, exs, db));
+    } else {
+      list.appendChild(buildStandaloneExBlock(ex, db));
+    }
   });
+
+  lucide.createIcons();
+}
+
+function buildStandaloneExBlock(ex, db) {
+  const lastW = db.workouts.slice().reverse().find(w => w.sets && w.sets[ex.id]);
+  const lastSets = lastW ? JSON.parse(JSON.stringify(lastW.sets[ex.id])) : null;
+  const lastDate = lastW ? lastW.date : null;
+  if (!currentSets[ex.id]) currentSets[ex.id] = JSON.parse(JSON.stringify(buildSuggestedSets(ex, lastSets)));
+  return buildExBlock(ex, currentSets[ex.id], lastDate, lastSets);
+}
+
+function buildSupersetGroupDOM(gIdx, exs, db) {
+  const group = currentSupersets[gIdx];
+  const isCircuit = group.length >= 3;
+  const typeLabel = isCircuit ? 'Circuit' : 'Superset';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'superset-group';
+  wrapper.id = 'ss-grp-' + gIdx;
+
+  const header = document.createElement('div');
+  header.className = 'ss-group-header';
+  header.innerHTML = `
+    <span class="ss-badge${isCircuit ? ' ss-badge-circuit' : ''}">${typeLabel}</span>
+    <span class="ss-progress-text" id="ss-prog-${gIdx}"></span>
+    <button class="ss-unlink-btn" onclick="unlinkSuperset(${gIdx})">
+      <i data-lucide="unlink-2" style="width:11px;height:11px;"></i> Unlink
+    </button>`;
+  wrapper.appendChild(header);
+
+  group.forEach(exId => {
+    const ex = exs.find(e => e.id === exId);
+    if (!ex) return;
+    wrapper.appendChild(buildStandaloneExBlock(ex, db));
+  });
+
+  return wrapper;
 }
 
 // lastSets = actual data from previous session (for display only)
@@ -341,7 +434,8 @@ function buildExBlock(ex, initialSets, lastDate, lastSets) {
 
   div.innerHTML = `
     <div class="ex-header" onclick="toggleEx('${ex.id}')">
-      <div>
+      <span class="ss-sel-indicator" id="ss-sel-${ex.id}">✓</span>
+      <div style="flex:1;min-width:0;">
         <div class="ex-name-row">${ex.name}${infoBtn}</div>
         <div style="font-size:12px;color:var(--text-3);margin-top:2px">${equipDisplay}</div>
       </div>
@@ -406,6 +500,7 @@ function updateBadge(exId) {
 }
 
 function toggleEx(exId) {
+  if (ssLinkMode) { toggleSsSelection(exId); return; }
   const body=document.getElementById('body-'+exId);
   const arrow=document.getElementById('arrow-'+exId);
   body.classList.toggle('open');
@@ -420,7 +515,8 @@ function saveWorkout() {
   const date=new Date().toISOString().split('T')[0];
   const setsToSave={};
   filled.forEach(([id,sets])=>{ setsToSave[id]=sets; });
-  db.workouts.push({date,day:currentDay,sets:setsToSave});
+  db.workouts.push({date, day:currentDay, sets:setsToSave,
+    supersets: currentSupersets.length ? JSON.parse(JSON.stringify(currentSupersets)) : undefined});
   saveDB(db);
   updateProgressionAfterWorkout(setsToSave);
   // Build summary toast
@@ -435,6 +531,83 @@ function saveWorkout() {
   if(parts.length) msg += '  ' + parts.join(' · ');
   showToast(msg);
   backToChoose();
+}
+
+// ============================================================
+// SUPERSET LINK MODE
+// ============================================================
+function enterLinkMode() {
+  if (ssLinkMode) { cancelLinkMode(); return; }
+  ssLinkMode = true;
+  ssLinkSelected = [];
+  document.getElementById('exercises-list').classList.add('ss-link-mode');
+  document.getElementById('ss-link-bar').style.display = 'flex';
+  document.getElementById('ss-chain-btn').classList.add('ss-chain-active');
+  updateLinkBar();
+}
+
+function cancelLinkMode() {
+  ssLinkMode = false;
+  ssLinkSelected = [];
+  const list = document.getElementById('exercises-list');
+  if (list) list.classList.remove('ss-link-mode');
+  const bar = document.getElementById('ss-link-bar');
+  if (bar) bar.style.display = 'none';
+  const btn = document.getElementById('ss-chain-btn');
+  if (btn) btn.classList.remove('ss-chain-active');
+  document.querySelectorAll('.ex-block.ss-selected').forEach(el => el.classList.remove('ss-selected'));
+}
+
+function toggleSsSelection(exId) {
+  if (currentSupersets.some(g => g.includes(exId))) {
+    showToast('Already grouped — unlink first'); return;
+  }
+  const block = document.getElementById('ex-' + exId);
+  if (!block) return;
+  if (ssLinkSelected.includes(exId)) {
+    ssLinkSelected = ssLinkSelected.filter(id => id !== exId);
+    block.classList.remove('ss-selected');
+  } else {
+    if (ssLinkSelected.length >= 3) { showToast('Max 3 exercises per group'); return; }
+    ssLinkSelected.push(exId);
+    block.classList.add('ss-selected');
+  }
+  updateLinkBar();
+}
+
+function updateLinkBar() {
+  const n    = ssLinkSelected.length;
+  const info = document.getElementById('ss-link-info');
+  const btn  = document.getElementById('ss-confirm-btn');
+  if (info) {
+    if (n === 0) info.textContent = 'Tap 2–3 exercises to group';
+    else if (n === 1) info.textContent = '1 selected — pick 1–2 more';
+    else info.textContent = `${n} selected${n >= 3 ? ' (max)' : ''}`;
+  }
+  if (btn) btn.disabled = n < 2;
+}
+
+function confirmLink() {
+  if (ssLinkSelected.length < 2) return;
+  currentSupersets.push([...ssLinkSelected]);
+  const type = ssLinkSelected.length >= 3 ? 'Circuit' : 'Superset';
+  cancelLinkMode();
+  reRenderExerciseList();
+  showToast(`${type} created!`);
+}
+
+function unlinkSuperset(gIdx) {
+  currentSupersets.splice(gIdx, 1);
+  // Re-index ssRoundDone
+  const rebuilt = {};
+  Object.keys(ssRoundDone).forEach(k => {
+    const ki = parseInt(k);
+    if (ki < gIdx) rebuilt[ki] = ssRoundDone[k];
+    else if (ki > gIdx) rebuilt[ki - 1] = ssRoundDone[k];
+  });
+  ssRoundDone = rebuilt;
+  reRenderExerciseList();
+  showToast('Exercises unlinked');
 }
 
 // BODYWEIGHT
@@ -894,13 +1067,21 @@ function renderHistoryBody(idx, editMode) {
     : (workout.sets || {});
   const allEx = getAllExercises();
 
+  // Build superset membership map for badge display
+  const hcSsMap = {};
+  (workout.supersets || []).forEach((g, i) => {
+    const lbl = g.length >= 3 ? 'Circuit' : 'SS';
+    g.forEach(id => { hcSsMap[id] = lbl; });
+  });
+
   let html = '<div class="hc-exercises">';
   Object.entries(srcSets).forEach(([exId, exSets]) => {
     const ex = allEx.find(e => e.id === exId);
     const exName = ex ? ex.name : exId;
     const exType = ex ? (ex.type || ex.equipment || '') : '';
+    const ssBadge = hcSsMap[exId] ? `<span class="hc-ss-badge">${hcSsMap[exId]}</span>` : '';
     html += `<div class="hc-ex-item">
-      <div class="hc-ex-name">${exName}<span class="hc-ex-type">${exType ? ' · '+exType : ''}</span></div>`;
+      <div class="hc-ex-name">${ssBadge}${exName}<span class="hc-ex-type">${exType ? ' · '+exType : ''}</span></div>`;
 
     if (editMode) {
       html += `<div class="sets-header sets-header-edit"><span>#</span><span>Reps</span><span>kg</span><span></span></div>`;
@@ -1475,7 +1656,22 @@ function generateProgram(profile, seed) {
       });
     });
 
-    return {...template, exercises};
+    // Suggest antagonist supersets for intermediate/advanced
+    const suggestedSupersets = [];
+    if (experience !== 'beginner') {
+      const ANTA_PAIRS = [['biceps','triceps'],['chest','back'],['quads','hamstrings']];
+      const ssUsed = new Set();
+      ANTA_PAIRS.forEach(([m1, m2]) => {
+        const e1 = exercises.find(e => e.muscles[0] === m1 && !ssUsed.has(e.id));
+        const e2 = exercises.find(e => e.muscles[0] === m2 && !ssUsed.has(e.id));
+        if (e1 && e2) {
+          suggestedSupersets.push([e1.id, e2.id]);
+          ssUsed.add(e1.id); ssUsed.add(e2.id);
+        }
+      });
+    }
+
+    return {...template, exercises, suggestedSupersets};
   });
 
   const splitLabels = {fullbody:'Full Body', upperlower:'Upper / Lower', ppl:'Push / Pull / Legs'};
@@ -1575,15 +1771,23 @@ function buildProgramDayCard(day, idx) {
   });
   const muscleLabel = muscleSet.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(' · ');
 
-  const exListHTML = day.exercises.map(ex =>
-    `<div class="prog-ex-row">
+  const progSsMap = {};
+  (day.suggestedSupersets || []).forEach(pair => {
+    const lbl = pair.length >= 3 ? 'Circuit' : 'SS';
+    pair.forEach(id => { progSsMap[id] = lbl; });
+  });
+
+  const exListHTML = day.exercises.map(ex => {
+    const badge = progSsMap[ex.id]
+      ? `<span class="prog-ss-badge">${progSsMap[ex.id]}</span>` : '';
+    return `<div class="prog-ex-row">
       <div class="prog-ex-left">
-        <span class="prog-ex-name">${ex.name}</span>
+        <span class="prog-ex-name">${badge}${ex.name}</span>
         <span class="prog-ex-type">${ex.type}</span>
       </div>
       <span class="prog-ex-scheme">${ex.sets}×${ex.reps}</span>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
 
   div.innerHTML = `
     <div class="prog-day-header">
@@ -1608,17 +1812,14 @@ function startProgramWorkout(dayIdx) {
 
   currentDay = day.dayType || 'push';
   currentSets = {};
+  currentSupersets = JSON.parse(JSON.stringify(day.suggestedSupersets || []));
+  ssRoundDone = {};
+  currentExercises = day.exercises.map(ex => ({id:ex.id, name:ex.name, type:ex.type, muscles:ex.muscles}));
 
   const db = getDB();
-  const list = document.getElementById('exercises-list');
-  list.innerHTML = '';
-
   day.exercises.forEach(ex => {
     const lastW = db.workouts.slice().reverse().find(w => w.sets && w.sets[ex.id]);
     const lastSets = lastW ? JSON.parse(JSON.stringify(lastW.sets[ex.id])) : null;
-    const lastDate = lastW ? lastW.date : null;
-    // Apply progression suggestion if available; otherwise use program defaults
-    const exObj = {id: ex.id, name: ex.name, type: ex.type, muscles: ex.muscles};
     const prog = getSuggestionForExercise(ex.id);
     let initialSets;
     if (prog && prog.suggestion) {
@@ -1633,13 +1834,13 @@ function startProgramWorkout(dayIdx) {
       initialSets = Array(ex.sets).fill(null).map(() => ({reps: parseRepsForInput(ex.reps), weight: ''}));
     }
     currentSets[ex.id] = JSON.parse(JSON.stringify(initialSets));
-    list.appendChild(buildExBlock(exObj, initialSets, lastDate, lastSets));
   });
 
   showTab('workout');
   document.getElementById('workout-choose').style.display = 'none';
   document.getElementById('workout-logging').style.display = 'block';
   document.getElementById('workout-day-label').textContent = day.label;
+  reRenderExerciseList();
   showToast(`${day.label} loaded — let's go!`);
 }
 
