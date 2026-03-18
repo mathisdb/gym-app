@@ -189,6 +189,9 @@ function buildExBlock(ex, initialSets, lastDate, lastSets) {
   div.className = 'ex-block';
   div.id = 'ex-'+ex.id;
   const deleteBtn = ex.custom ? `<button class="del-ex-btn" onclick="deleteCustomExercise('${ex.id}');event.stopPropagation();"><i data-lucide="x" style="width:16px;height:16px;"></i></button>` : '';
+  const infoBtn = (typeof EXERCISE_GUIDES !== 'undefined' && EXERCISE_GUIDES[ex.id])
+    ? `<button class="ex-info-btn" onclick="showGuide('${ex.id}');event.stopPropagation();" title="Form guide"><i data-lucide="info" style="width:15px;height:15px;"></i></button>`
+    : '';
   const equipDisplay = ex.type || ex.equipment || '';
 
   // Progression dot shown in collapsed header
@@ -202,7 +205,7 @@ function buildExBlock(ex, initialSets, lastDate, lastSets) {
   div.innerHTML = `
     <div class="ex-header" onclick="toggleEx('${ex.id}')">
       <div>
-        <div class="ex-name">${ex.name}</div>
+        <div class="ex-name-row">${ex.name}${infoBtn}</div>
         <div style="font-size:12px;color:var(--text-3);margin-top:2px">${equipDisplay}</div>
       </div>
       <div class="ex-meta">
@@ -1462,6 +1465,74 @@ function updateProgressionAfterWorkout(setsToSave) {
   });
 
   saveProgressionLog(log);
+}
+
+// ============================================================
+// EXERCISE GUIDE MODAL
+// ============================================================
+let _guideSwipeY = null;
+
+function showGuide(exId) {
+  if (typeof EXERCISE_GUIDES === 'undefined') return;
+  const guide = EXERCISE_GUIDES[exId];
+  if (!guide) return;
+
+  const stepsHTML = guide.steps.map((s,i) =>
+    `<div class="guide-step"><span class="guide-step-num">${i+1}</span><span>${s}</span></div>`
+  ).join('');
+
+  const mistakesHTML = guide.mistakes.map(m =>
+    `<div class="guide-mistake"><span class="guide-mistake-dot"></span><span>${m}</span></div>`
+  ).join('');
+
+  document.getElementById('guide-content').innerHTML = `
+    <div class="guide-header">
+      <div class="guide-ex-name">${guide.name}</div>
+      <div class="guide-ex-meta">
+        <span class="guide-tag">${guide.muscle}</span>
+        <span class="guide-tag">${guide.equipment}</span>
+      </div>
+    </div>
+    <div class="guide-svg-wrap">${guide.svg}</div>
+    <div class="guide-section-title">How to perform</div>
+    <div class="guide-steps">${stepsHTML}</div>
+    <div class="guide-section-title">Common mistakes</div>
+    <div class="guide-mistakes">${mistakesHTML}</div>
+  `;
+
+  const sheet = document.getElementById('guide-sheet');
+  const backdrop = document.getElementById('guide-backdrop');
+  backdrop.classList.add('guide-open');
+  sheet.classList.add('guide-open');
+
+  // Swipe-down to dismiss
+  sheet.addEventListener('touchstart', _guideTouchStart, {passive: true});
+  sheet.addEventListener('touchmove', _guideTouchMove, {passive: true});
+  sheet.addEventListener('touchend', _guideTouchEnd, {passive: true});
+}
+
+function closeGuide() {
+  const sheet = document.getElementById('guide-sheet');
+  const backdrop = document.getElementById('guide-backdrop');
+  sheet.style.transform = '';
+  backdrop.classList.remove('guide-open');
+  sheet.classList.remove('guide-open');
+  sheet.removeEventListener('touchstart', _guideTouchStart);
+  sheet.removeEventListener('touchmove', _guideTouchMove);
+  sheet.removeEventListener('touchend', _guideTouchEnd);
+  _guideSwipeY = null;
+}
+
+function _guideTouchStart(e) { _guideSwipeY = e.touches[0].clientY; }
+function _guideTouchMove(e) {
+  if (_guideSwipeY === null) return;
+  const dy = e.touches[0].clientY - _guideSwipeY;
+  if (dy > 0) document.getElementById('guide-sheet').style.transform = `translateY(${dy}px)`;
+}
+function _guideTouchEnd(e) {
+  const sheet = document.getElementById('guide-sheet');
+  const dy = _guideSwipeY !== null ? (e.changedTouches[0].clientY - _guideSwipeY) : 0;
+  if (dy > 80) { closeGuide(); } else { sheet.style.transform = ''; _guideSwipeY = null; }
 }
 
 // ============================================================

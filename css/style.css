@@ -698,3 +698,186 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
   .pi-maintain { color: #fbbf24; }
   .pi-maintain strong { color: #fbbf24; }
 }
+
+/* ============================================================
+   EXERCISE INFO BUTTON
+   ============================================================ */
+.ex-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ex-info-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent-light);
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.ex-info-btn:active { opacity: 0.7; }
+
+/* ============================================================
+   EXERCISE GUIDE MODAL (slide-up sheet)
+   ============================================================ */
+.guide-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+.guide-backdrop.guide-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.guide-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0; right: 0;
+  z-index: 301;
+  background: var(--card);
+  border-radius: 20px 20px 0 0;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.32,0.72,0,1);
+  will-change: transform;
+}
+.guide-sheet.guide-open {
+  transform: translateY(0);
+}
+
+.guide-handle-bar {
+  padding: 10px 0 4px;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.guide-handle {
+  width: 36px; height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.guide-content {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 18px 32px;
+  flex: 1;
+}
+
+.guide-header {
+  margin-bottom: 14px;
+}
+.guide-ex-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.guide-ex-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.guide-tag {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.guide-svg-wrap {
+  margin-bottom: 18px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+.guide-svg-wrap svg {
+  width: 100%;
+  max-width: 340px;
+  height: auto;
+}
+
+.guide-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+.guide-steps {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.guide-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.guide-step-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.guide-mistakes {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+.guide-mistake {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.guide-mistake-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 6px;
+}
