@@ -174,22 +174,31 @@ function loadDayExercises() {
   list.innerHTML = '';
   exs.forEach(ex => {
     const lastW = db.workouts.slice().reverse().find(w=>w.sets&&w.sets[ex.id]);
-    const lastSets = lastW ? JSON.parse(JSON.stringify(lastW.sets[ex.id])) : [{reps:10,weight:''}];
+    const lastSets = lastW ? JSON.parse(JSON.stringify(lastW.sets[ex.id])) : null;
     const lastDate = lastW ? lastW.date : null;
-    currentSets[ex.id] = JSON.parse(JSON.stringify(lastSets));
-    list.appendChild(buildExBlock(ex, lastSets, lastDate));
+    const initialSets = buildSuggestedSets(ex, lastSets);
+    currentSets[ex.id] = JSON.parse(JSON.stringify(initialSets));
+    list.appendChild(buildExBlock(ex, initialSets, lastDate, lastSets));
   });
 }
 
-function buildExBlock(ex, initialSets, lastDate) {
+// lastSets = actual data from previous session (for display only)
+// initialSets = pre-filled values shown in inputs (may have suggestion applied)
+function buildExBlock(ex, initialSets, lastDate, lastSets) {
   const div = document.createElement('div');
   div.className = 'ex-block';
   div.id = 'ex-'+ex.id;
-  const lastInfo = lastDate
-    ? `Last: ${lastDate} · ${initialSets.length}×${initialSets[0]?.weight||'–'}kg`
-    : 'No previous session';
   const deleteBtn = ex.custom ? `<button class="del-ex-btn" onclick="deleteCustomExercise('${ex.id}');event.stopPropagation();"><i data-lucide="x" style="width:16px;height:16px;"></i></button>` : '';
-  const equipDisplay = ex.type || ex.equipment || ''; // FIX: handle legacy 'equipment' field
+  const equipDisplay = ex.type || ex.equipment || '';
+
+  // Progression dot shown in collapsed header
+  const progression = getSuggestionForExercise(ex.id);
+  const progDot = progression?.suggestion
+    ? `<span class="ex-prog-dot ex-prog-${progression.suggestion.type}" title="${progression.suggestion.type}"></span>`
+    : '';
+
+  const progressionHTML = buildProgressionIndicator(ex, lastSets || (lastDate ? initialSets : null), lastDate);
+
   div.innerHTML = `
     <div class="ex-header" onclick="toggleEx('${ex.id}')">
       <div>
@@ -197,13 +206,14 @@ function buildExBlock(ex, initialSets, lastDate) {
         <div style="font-size:12px;color:var(--text-3);margin-top:2px">${equipDisplay}</div>
       </div>
       <div class="ex-meta">
+        ${progDot}
         <span id="badge-${ex.id}">${initialSets.length} set${initialSets.length!==1?'s':''}</span>
         ${deleteBtn}
         <i data-lucide="chevron-down" class="ex-arrow" id="arrow-${ex.id}" style="width:16px;height:16px;"></i>
       </div>
     </div>
     <div class="ex-body" id="body-${ex.id}">
-      <div class="last-session">${lastInfo}</div>
+      <div class="progression-panel">${progressionHTML}</div>
       <div class="sets-header">
         <span>#</span><span>Reps</span><span>kg</span><span></span>
       </div>
@@ -270,7 +280,18 @@ function saveWorkout() {
   filled.forEach(([id,sets])=>{ setsToSave[id]=sets; });
   db.workouts.push({date,day:currentDay,sets:setsToSave});
   saveDB(db);
-  showToast('Workout saved!');
+  updateProgressionAfterWorkout(setsToSave);
+  // Build summary toast
+  const log = getProgressionLog();
+  const counts = {increase:0, maintain:0, deload:0};
+  Object.keys(setsToSave).forEach(id => { const t=log[id]?.suggestion?.type; if(t) counts[t]++; });
+  let msg = 'Workout saved!';
+  const parts = [];
+  if(counts.increase) parts.push(`${counts.increase}↑`);
+  if(counts.maintain) parts.push(`${counts.maintain}→`);
+  if(counts.deload)   parts.push(`${counts.deload} deload`);
+  if(parts.length) msg += '  ' + parts.join(' · ');
+  showToast(msg);
   backToChoose();
 }
 
@@ -1238,20 +1259,25 @@ function startProgramWorkout(dayIdx) {
 
   day.exercises.forEach(ex => {
     const lastW = db.workouts.slice().reverse().find(w => w.sets && w.sets[ex.id]);
+    const lastSets = lastW ? JSON.parse(JSON.stringify(lastW.sets[ex.id])) : null;
+    const lastDate = lastW ? lastW.date : null;
+    // Apply progression suggestion if available; otherwise use program defaults
+    const exObj = {id: ex.id, name: ex.name, type: ex.type, muscles: ex.muscles};
+    const prog = getSuggestionForExercise(ex.id);
     let initialSets;
-    if (lastW) {
-      initialSets = JSON.parse(JSON.stringify(lastW.sets[ex.id]));
+    if (prog && prog.suggestion) {
+      const setCount = lastSets ? lastSets.length : ex.sets;
+      initialSets = Array(setCount).fill(null).map(() => ({
+        reps: prog.suggestion.targetReps || parseRepsForInput(ex.reps),
+        weight: prog.suggestion.weight || ''
+      }));
+    } else if (lastSets) {
+      initialSets = lastSets;
     } else {
-      const defaultReps = parseRepsForInput(ex.reps);
-      initialSets = Array(ex.sets).fill(null).map(() => ({reps: defaultReps, weight: ''}));
+      initialSets = Array(ex.sets).fill(null).map(() => ({reps: parseRepsForInput(ex.reps), weight: ''}));
     }
     currentSets[ex.id] = JSON.parse(JSON.stringify(initialSets));
-    const fullEx = lookupExercise(ex.id) || ex;
-    list.appendChild(buildExBlock(
-      {id: ex.id, name: ex.name, type: ex.type, muscles: ex.muscles},
-      initialSets,
-      lastW ? lastW.date : null
-    ));
+    list.appendChild(buildExBlock(exObj, initialSets, lastDate, lastSets));
   });
 
   showTab('workout');
@@ -1269,6 +1295,173 @@ function regenerateProgram() {
   saveCurrentProgram(program);
   renderProgramContent(program, profile);
   showToast('New program generated!');
+}
+
+// ============================================================
+// PROGRESSIVE OVERLOAD
+// ============================================================
+
+// Weight increment per equipment type when user hits all target reps
+const WEIGHT_INCREMENT = {
+  Barbell:    2.5,
+  Dumbbell:   2,
+  Cable:      2,
+  Machine:    2,
+  Bodyweight: 0,   // bodyweight: no weight to increment
+};
+
+function getProgressionLog() {
+  try { return JSON.parse(localStorage.getItem('progressionLog') || '{}'); }
+  catch { return {}; }
+}
+function saveProgressionLog(log) { localStorage.setItem('progressionLog', JSON.stringify(log)); }
+
+function getSuggestionForExercise(exId) {
+  const log = getProgressionLog();
+  return log[exId] || null;
+}
+
+// Resolve the target reps for an exercise: program → progression log → default 10
+function getTargetRepsForExercise(exId) {
+  const program = getCurrentProgram();
+  if (program) {
+    for (const day of program.days) {
+      const found = day.exercises.find(e => e.id === exId);
+      if (found) return parseRepsForInput(found.reps);
+    }
+  }
+  const log = getProgressionLog();
+  if (log[exId]?.targetReps) return log[exId].targetReps;
+  return 10;
+}
+
+// Return sets pre-filled with the progression suggestion weight/reps.
+// Falls back to lastSets or a clean default if no suggestion exists.
+function buildSuggestedSets(ex, lastSets) {
+  const prog = getSuggestionForExercise(ex.id);
+  if (prog && prog.suggestion) {
+    const { weight, targetReps } = prog.suggestion;
+    const setCount = lastSets ? lastSets.length : (prog.lastSetsCount || 3);
+    return Array(setCount).fill(null).map(() => ({
+      reps: targetReps || 10,
+      weight: weight || ''
+    }));
+  }
+  if (lastSets) return JSON.parse(JSON.stringify(lastSets));
+  return [{reps: getTargetRepsForExercise(ex.id), weight: ''}];
+}
+
+// Build the HTML for the progression info panel inside an expanded exercise block
+function buildProgressionIndicator(ex, lastSets, lastDate) {
+  const prog = getSuggestionForExercise(ex.id);
+
+  // No history at all
+  if (!lastDate && !prog) {
+    return `<div class="pi-none">No previous session — enter your starting weight</div>`;
+  }
+
+  // Have session data but progression hasn't been computed yet (first workout with this exercise)
+  if (!prog || !prog.suggestion) {
+    if (lastDate && lastSets) {
+      const w = lastSets[0]?.weight || '—';
+      const n = lastSets.length;
+      const r = Math.min(...lastSets.map(s => parseInt(s.reps)||0));
+      return `<div class="pi-none">Last: ${lastDate} · ${n}×${w}kg · ${r} reps/set</div>`;
+    }
+    return `<div class="pi-none">No previous session</div>`;
+  }
+
+  const { suggestion, lastWeight, lastReps, lastSetsCount, consecutiveFails, targetReps } = prog;
+  const lastLine = lastDate
+    ? `${lastDate} · ${lastSetsCount||'?'}×${lastWeight||'—'}kg · ${lastReps||'—'} reps/set`
+    : `${lastSetsCount||'?'}×${lastWeight||'—'}kg · ${lastReps||'—'} reps/set`;
+
+  const { type, weight: sugWeight, targetReps: sugReps } = suggestion;
+
+  const cfg = {
+    increase: { cls:'pi-increase', icon:'trending-up',   text:`${sugWeight}kg × ${sugReps} reps` },
+    maintain: { cls:'pi-maintain', icon:'minus',          text:`${sugWeight}kg × ${sugReps} reps` },
+    deload:   { cls:'pi-deload',   icon:'trending-down',  text:`${sugWeight}kg × ${sugReps} reps` },
+  }[type] || { cls:'pi-maintain', icon:'minus', text:`${sugWeight}kg × ${sugReps} reps` };
+
+  const typeLabel = {increase:'Increase', maintain:'Maintain', deload:'Deload'}[type] || type;
+
+  let failNote = '';
+  if (type === 'deload') {
+    failNote = `<span class="pi-fail-note"> · 2+ fails in a row — reset &amp; rebuild</span>`;
+  } else if (type === 'maintain' && consecutiveFails >= 1) {
+    failNote = `<span class="pi-fail-note"> · failed to hit target last session</span>`;
+  }
+
+  return `
+    <div class="pi-row pi-last-row">
+      <span class="pi-label">Last</span>
+      <span class="pi-value">${lastLine}</span>
+    </div>
+    <div class="pi-row ${cfg.cls}">
+      <span class="pi-icon"><i data-lucide="${cfg.icon}" style="width:13px;height:13px;"></i></span>
+      <span class="pi-value"><strong>${typeLabel}:</strong> ${cfg.text}${failNote}</span>
+    </div>`;
+}
+
+// Called from saveWorkout() — analyses performance and writes new suggestion to progressionLog
+function updateProgressionAfterWorkout(setsToSave) {
+  const log = getProgressionLog();
+
+  Object.entries(setsToSave).forEach(([exId, sets]) => {
+    if (!sets || !sets.length) return;
+
+    // Resolve equipment type for increment lookup
+    const exMeta = lookupExercise(exId)
+      || getAllExercises().find(e => e.id === exId)
+      || {type: 'Barbell'};
+    const type = exMeta.type || exMeta.equipment || 'Barbell';
+    const increment = WEIGHT_INCREMENT[type] !== undefined ? WEIGHT_INCREMENT[type] : 2.5;
+
+    // Use the maximum weight logged across all sets as the session weight
+    const maxWeight = Math.max(...sets.map(s => parseFloat(s.weight) || 0));
+    if (!maxWeight) return; // skip exercises with no weight (bodyweight, unlogged)
+
+    const targetReps = getTargetRepsForExercise(exId);
+
+    // "Hit target" means EVERY set reached the target rep count
+    const hitTarget = sets.every(s => (parseInt(s.reps) || 0) >= targetReps);
+
+    const prev = log[exId] || {consecutiveFails: 0};
+    let consecutiveFails = prev.consecutiveFails || 0;
+
+    let suggestionType, suggestedWeight;
+    if (hitTarget) {
+      suggestionType = increment > 0 ? 'increase' : 'maintain';
+      suggestedWeight = maxWeight + increment;
+      consecutiveFails = 0;
+    } else {
+      consecutiveFails++;
+      if (consecutiveFails >= 2) {
+        // Two consecutive failures → deload 10%, round to nearest 2.5 kg
+        suggestedWeight = Math.max(2.5, Math.round(maxWeight * 0.9 / 2.5) * 2.5);
+        suggestionType = 'deload';
+        consecutiveFails = 0;
+      } else {
+        suggestedWeight = maxWeight;
+        suggestionType = 'maintain';
+      }
+    }
+
+    // minReps = worst performing set (most conservative measure)
+    const minReps = Math.min(...sets.map(s => parseInt(s.reps) || 0));
+
+    log[exId] = {
+      targetReps,
+      consecutiveFails,
+      lastWeight: maxWeight,
+      lastReps: minReps,
+      lastSetsCount: sets.length,
+      suggestion: { type: suggestionType, weight: suggestedWeight, targetReps },
+    };
+  });
+
+  saveProgressionLog(log);
 }
 
 // ============================================================
