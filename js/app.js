@@ -554,8 +554,10 @@ function renderProgressChart() {
 // ============================================================
 // HISTORY TAB
 // ============================================================
-let historyFilter = 'all';
-let historyEditData = null; // { idx, sets }
+let historyFilter  = 'all';
+let historyEditData = null;
+let historyView    = 'cal';   // 'cal' | 'list'
+let calYear, calMonth;        // currently displayed month
 
 function calculateStreak(workouts) {
   if (!workouts.length) return 0;
@@ -574,7 +576,218 @@ function calculateStreak(workouts) {
   return streak;
 }
 
+// Main dispatcher — called by showTab('history') and after data changes
 function renderHistory() {
+  if (historyView === 'cal') renderCalendar();
+  else renderHistoryListView();
+}
+
+function switchHistoryView(view) {
+  historyView = view;
+  document.getElementById('history-cal').style.display       = view === 'cal'  ? 'block' : 'none';
+  document.getElementById('history-list-view').style.display = view === 'list' ? 'block' : 'none';
+  document.getElementById('hvt-cal').classList.toggle('hvt-active',  view === 'cal');
+  document.getElementById('hvt-list').classList.toggle('hvt-active', view === 'list');
+  renderHistory();
+}
+
+// ── Calendar view ─────────────────────────────────────────────
+const CAL_MONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+
+function renderCalendar() {
+  // Lazy-initialise to current month
+  if (calYear === undefined) {
+    const now = new Date();
+    calYear  = now.getFullYear();
+    calMonth = now.getMonth();
+  }
+
+  const db = getDB();
+
+  // Build date → [{workout, idx}] map
+  const wMap = {};
+  db.workouts.forEach((w, i) => {
+    (wMap[w.date] = wMap[w.date] || []).push({w, i});
+  });
+
+  const todayStr   = new Date().toISOString().split('T')[0];
+  const yrStr      = String(calYear);
+  const moStr      = String(calMonth + 1).padStart(2, '0');
+  const monthPfx   = `${yrStr}-${moStr}`;
+
+  const firstDow   = new Date(calYear, calMonth, 1).getDay();      // 0=Sun
+  const daysInMon  = new Date(calYear, calMonth + 1, 0).getDate();
+
+  // Leading blanks + day cells
+  let cells = '';
+  for (let b = 0; b < firstDow; b++) cells += `<div class="cal-cell"></div>`;
+
+  for (let d = 1; d <= daysInMon; d++) {
+    const ds         = `${monthPfx}-${String(d).padStart(2,'0')}`;
+    const entries    = wMap[ds];
+    const hasW       = !!entries;
+    const isToday    = ds === todayStr;
+    const isFuture   = ds > todayStr;
+    const dotCount   = hasW ? Math.min(entries.length, 3) : 0;
+
+    let cls = 'cal-cell cal-day';
+    if (isToday)   cls += ' cal-today';
+    if (isFuture)  cls += ' cal-future';
+    if (hasW)      cls += ' cal-has-workout';
+
+    const dots = dotCount
+      ? `<div class="cal-dots">${'<span class="cal-dot"></span>'.repeat(dotCount)}</div>`
+      : `<div class="cal-dots"></div>`;
+
+    const tap = hasW ? `onclick="openDayDetail('${ds}')"` : '';
+    cells += `<div class="${cls}" ${tap}><span class="cal-day-num">${d}</span>${dots}</div>`;
+  }
+
+  // Trailing blanks to complete last row
+  const total = firstDow + daysInMon;
+  const tail  = (7 - (total % 7)) % 7;
+  for (let b = 0; b < tail; b++) cells += `<div class="cal-cell"></div>`;
+
+  document.getElementById('cal-grid').innerHTML = cells;
+  document.getElementById('cal-month-title').textContent = `${CAL_MONTHS[calMonth]} ${calYear}`;
+
+  // Stat bar
+  const monthCount = db.workouts.filter(w => w.date.startsWith(monthPfx)).length;
+  const streak     = calculateStreak(db.workouts);
+  document.getElementById('cal-stat-bar').innerHTML = `
+    <span class="cal-stat-pill">${monthCount} workout${monthCount !== 1 ? 's' : ''} this month</span>
+    <span class="cal-stat-pill"><strong>${streak}</strong> day streak</span>
+  `;
+
+  // Horizontal swipe to change month
+  _initCalSwipe();
+}
+
+function navCalendar(delta) {
+  calMonth += delta;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  // Slide the grid out then back in
+  const grid = document.getElementById('cal-grid');
+  grid.classList.add(delta > 0 ? 'cal-slide-out-left' : 'cal-slide-out-right');
+  setTimeout(() => {
+    renderCalendar();
+    grid.classList.remove('cal-slide-out-left', 'cal-slide-out-right');
+    grid.classList.add(delta > 0 ? 'cal-slide-in-right' : 'cal-slide-in-left');
+    setTimeout(() => grid.classList.remove('cal-slide-in-right', 'cal-slide-in-left'), 260);
+  }, 160);
+}
+
+let _calSwipeStartX = null, _calSwipeStartY = null;
+function _initCalSwipe() {
+  const wrap = document.getElementById('cal-wrap');
+  if (!wrap || wrap._swipeInit) return;
+  wrap._swipeInit = true;
+  wrap.addEventListener('touchstart', e => {
+    _calSwipeStartX = e.touches[0].clientX;
+    _calSwipeStartY = e.touches[0].clientY;
+  }, {passive: true});
+  wrap.addEventListener('touchend', e => {
+    if (_calSwipeStartX === null) return;
+    const dx = e.changedTouches[0].clientX - _calSwipeStartX;
+    const dy = e.changedTouches[0].clientY - _calSwipeStartY;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) navCalendar(dx < 0 ? 1 : -1);
+    _calSwipeStartX = _calSwipeStartY = null;
+  }, {passive: true});
+}
+
+// ── Day detail sheet ──────────────────────────────────────────
+let _ddSwipeY = null;
+
+function openDayDetail(dateStr) {
+  const db      = getDB();
+  const entries = db.workouts
+    .map((w, i) => ({w, i}))
+    .filter(e => e.w.date === dateStr);
+  if (!entries.length) return;
+
+  const d = new Date(dateStr + 'T12:00:00');
+  const dateLabel = d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+  const allEx = getAllExercises();
+
+  let html = `<div class="dd-date">${dateLabel}</div>`;
+
+  entries.forEach(({w, i}, ei) => {
+    const sets    = w.sets || {};
+    const exIds   = Object.keys(sets);
+    const nSets   = exIds.reduce((a, id) => a + (sets[id]||[]).length, 0);
+    const vol     = exIds.reduce((a, id) =>
+      a + (sets[id]||[]).reduce((b, s) => b + (parseFloat(s.weight)||0)*(parseInt(s.reps)||0), 0), 0);
+
+    if (entries.length > 1) html += `<div class="dd-session-lbl">Session ${ei + 1}</div>`;
+
+    html += `
+      <div class="dd-meta-row">
+        <span class="hc-type-tag">${DAY_LABELS[w.day] || w.day}</span>
+        <span class="dd-chip">${exIds.length} exercises</span>
+        <span class="dd-chip">${nSets} sets</span>
+        <span class="dd-chip">${Math.round(vol)} kg vol</span>
+      </div>
+      <div class="dd-ex-list">`;
+
+    exIds.forEach(exId => {
+      const ex     = allEx.find(e => e.id === exId);
+      const name   = ex ? ex.name : exId;
+      const exSets = sets[exId] || [];
+      const scheme = exSets.map(s => `${s.reps||0}×${s.weight||0}kg`).join('  ');
+      html += `
+        <div class="dd-ex-row">
+          <span class="dd-ex-name">${name}</span>
+          <span class="dd-ex-sets">${scheme}</span>
+        </div>`;
+    });
+
+    html += `</div>
+      <button class="save-btn dd-redo-btn" onclick="redoWorkout(${i});closeDayDetail();">
+        <i data-lucide="repeat" style="width:16px;height:16px;"></i> Repeat this workout
+      </button>`;
+  });
+
+  document.getElementById('day-detail-content').innerHTML = html;
+  lucide.createIcons();
+
+  const sheet    = document.getElementById('day-detail-sheet');
+  const backdrop = document.getElementById('day-detail-backdrop');
+  backdrop.classList.add('dd-open');
+  sheet.classList.add('dd-open');
+
+  sheet.addEventListener('touchstart', _ddTouchStart, {passive: true});
+  sheet.addEventListener('touchmove',  _ddTouchMove,  {passive: true});
+  sheet.addEventListener('touchend',   _ddTouchEnd,   {passive: true});
+}
+
+function closeDayDetail() {
+  const sheet    = document.getElementById('day-detail-sheet');
+  const backdrop = document.getElementById('day-detail-backdrop');
+  sheet.style.transform = '';
+  backdrop.classList.remove('dd-open');
+  sheet.classList.remove('dd-open');
+  sheet.removeEventListener('touchstart', _ddTouchStart);
+  sheet.removeEventListener('touchmove',  _ddTouchMove);
+  sheet.removeEventListener('touchend',   _ddTouchEnd);
+  _ddSwipeY = null;
+}
+
+function _ddTouchStart(e) { _ddSwipeY = e.touches[0].clientY; }
+function _ddTouchMove(e) {
+  if (_ddSwipeY === null) return;
+  const dy = e.touches[0].clientY - _ddSwipeY;
+  if (dy > 0) document.getElementById('day-detail-sheet').style.transform = `translateY(${dy}px)`;
+}
+function _ddTouchEnd(e) {
+  const dy = _ddSwipeY !== null ? e.changedTouches[0].clientY - _ddSwipeY : 0;
+  if (dy > 80) closeDayDetail();
+  else { document.getElementById('day-detail-sheet').style.transform = ''; _ddSwipeY = null; }
+}
+
+// ── List view ─────────────────────────────────────────────────
+function renderHistoryListView() {
   const db = getDB();
   const allWorkouts = db.workouts;
   const historyList = document.getElementById('history-list');
@@ -603,14 +816,11 @@ function renderHistory() {
     <div class="stat-box"><div class="sv">${thisWeek}</div><div class="sl">This week</div></div>
     <div class="stat-box"><div class="sv">${streak}</div><div class="sl">Day streak</div></div>`;
 
-  // Build indexed list newest first
   const indexed = allWorkouts.map((w, i) => ({w, i})).reverse();
   const filtered = historyFilter === 'all' ? indexed : indexed.filter(({w}) => w.day === historyFilter);
 
   historyList.innerHTML = '';
-  filtered.forEach(({w, i}) => {
-    historyList.appendChild(buildHistoryCard(w, i));
-  });
+  filtered.forEach(({w, i}) => historyList.appendChild(buildHistoryCard(w, i)));
   lucide.createIcons();
 }
 
@@ -693,7 +903,7 @@ function renderHistoryBody(idx, editMode) {
       <div class="hc-ex-name">${exName}<span class="hc-ex-type">${exType ? ' · '+exType : ''}</span></div>`;
 
     if (editMode) {
-      html += `<div class="sets-header"><span>#</span><span>Reps</span><span>kg</span><span></span></div>`;
+      html += `<div class="sets-header sets-header-edit"><span>#</span><span>Reps</span><span>kg</span><span></span></div>`;
       exSets.forEach((s, si) => {
         html += `<div class="set-row">
           <span class="set-num">${si+1}</span>
@@ -828,7 +1038,7 @@ function setHistoryFilter(day, btn) {
   historyFilter = day;
   document.querySelectorAll('.hf-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  renderHistory();
+  renderHistoryListView();
 }
 
 // ============================================================

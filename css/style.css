@@ -156,6 +156,272 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
   font-weight: 600;
 }
 
+/* History edit mode uses 4-col grid (no done button) */
+.sets-header-edit { grid-template-columns: 22px 1fr 1fr 32px !important; }
+.sets-header-edit + .set-row,
+.hc-body .set-row  { grid-template-columns: 22px 1fr 1fr 32px !important; }
+
+/* ============================================================
+   HISTORY CALENDAR VIEW
+   ============================================================ */
+
+/* View toggle pill */
+.hist-view-toggle {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin-bottom: 10px;
+}
+.hvt-btn {
+  flex: 1;
+  padding: 9px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: background 0.15s, color 0.15s;
+}
+.hvt-btn.hvt-active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Calendar card */
+.cal-card { padding: 14px 12px; }
+
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.cal-month-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+.cal-nav-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: var(--bg);
+  border-radius: 50%;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.cal-nav-btn:active { background: var(--accent-light); color: var(--accent); }
+
+.cal-dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+.cal-dow-row span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 2px 0;
+}
+
+/* Grid */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.cal-cell {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  gap: 2px;
+  transition: background 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.cal-day-num {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text);
+}
+.cal-future .cal-day-num { color: var(--text-3); }
+
+.cal-today {
+  background: var(--accent-light);
+}
+.cal-today .cal-day-num {
+  color: var(--accent);
+  font-weight: 700;
+}
+.cal-has-workout {
+  cursor: pointer;
+}
+.cal-has-workout:active { background: var(--accent-light); }
+
+/* Workout dots */
+.cal-dots {
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  min-height: 5px;
+}
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.cal-today .cal-dot { background: var(--accent); }
+
+/* Month slide animation */
+@keyframes cal-in-left  { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes cal-in-right { from { opacity: 0; transform: translateX( 12px); } to { opacity: 1; transform: none; } }
+@keyframes cal-out-left  { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-10px); } }
+@keyframes cal-out-right { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX( 10px); } }
+.cal-slide-in-left  { animation: cal-in-left   0.22s ease; }
+.cal-slide-in-right { animation: cal-in-right  0.22s ease; }
+.cal-slide-out-left  { animation: cal-out-left  0.15s ease forwards; }
+.cal-slide-out-right { animation: cal-out-right 0.15s ease forwards; }
+
+/* Stat bar */
+.cal-stat-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 0 4px;
+}
+.cal-stat-pill {
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--card);
+  border: 0.5px solid var(--border);
+  border-radius: 99px;
+  padding: 5px 14px;
+}
+.cal-stat-pill strong { color: var(--accent); font-weight: 700; }
+
+/* ── Day detail sheet ── */
+.dd-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+.dd-backdrop.dd-open { opacity: 1; pointer-events: auto; }
+
+.dd-sheet {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 301;
+  background: var(--card);
+  border-radius: 20px 20px 0 0;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+.dd-sheet.dd-open { transform: translateY(0); }
+
+.dd-handle-bar {
+  padding: 10px 0 4px;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dd-handle {
+  width: 36px; height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+}
+.dd-content {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 18px 36px;
+  flex: 1;
+}
+.dd-date {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.dd-session-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin: 14px 0 8px;
+}
+.dd-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.dd-chip {
+  font-size: 12px;
+  color: var(--text-3);
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: 99px;
+  padding: 3px 10px;
+}
+.dd-ex-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 18px;
+}
+.dd-ex-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+.dd-ex-row:last-child { border-bottom: none; }
+.dd-ex-name { font-size: 14px; font-weight: 500; color: var(--text); }
+.dd-ex-sets { font-size: 12px; color: var(--text-3); text-align: right; flex-shrink: 0; }
+.dd-redo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
 /* History workout card */
 .hcard { padding: 0; overflow: hidden; }
 .hc-header {

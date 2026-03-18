@@ -328,19 +328,54 @@
 
   <!-- HISTORY -->
   <div class="section" id="tab-history">
-    <div class="card" id="history-summary-card" style="display:none">
-      <div class="stat-grid" id="history-stats"></div>
+
+    <!-- View toggle -->
+    <div class="hist-view-toggle">
+      <button class="hvt-btn hvt-active" id="hvt-cal" onclick="switchHistoryView('cal')">
+        <i data-lucide="calendar" style="width:14px;height:14px;"></i> Calendar
+      </button>
+      <button class="hvt-btn" id="hvt-list" onclick="switchHistoryView('list')">
+        <i data-lucide="list" style="width:14px;height:14px;"></i> List
+      </button>
     </div>
-    <div class="history-filter-bar">
-      <button class="hf-btn active" onclick="setHistoryFilter('all',this)">All</button>
-      <button class="hf-btn" onclick="setHistoryFilter('push',this)">Push</button>
-      <button class="hf-btn" onclick="setHistoryFilter('pull',this)">Pull</button>
-      <button class="hf-btn" onclick="setHistoryFilter('legs',this)">Legs</button>
-      <button class="hf-btn" onclick="setHistoryFilter('arms',this)">Arms</button>
-      <button class="hf-btn" onclick="setHistoryFilter('chest_back',this)">C/B</button>
+
+    <!-- CALENDAR VIEW -->
+    <div id="history-cal">
+      <div class="card cal-card" id="cal-wrap">
+        <div class="cal-nav">
+          <button class="cal-nav-btn" onclick="navCalendar(-1)" aria-label="Previous month">
+            <i data-lucide="chevron-left" style="width:18px;height:18px;"></i>
+          </button>
+          <span class="cal-month-title" id="cal-month-title"></span>
+          <button class="cal-nav-btn" onclick="navCalendar(1)" aria-label="Next month">
+            <i data-lucide="chevron-right" style="width:18px;height:18px;"></i>
+          </button>
+        </div>
+        <div class="cal-dow-row">
+          <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div class="cal-stat-bar" id="cal-stat-bar"></div>
     </div>
-    <div id="history-list"></div>
-    <div id="history-empty" class="empty" style="display:none">No workouts yet. Log your first workout!</div>
+
+    <!-- LIST VIEW -->
+    <div id="history-list-view" style="display:none">
+      <div class="card" id="history-summary-card" style="display:none">
+        <div class="stat-grid" id="history-stats"></div>
+      </div>
+      <div class="history-filter-bar">
+        <button class="hf-btn active" onclick="setHistoryFilter('all',this)">All</button>
+        <button class="hf-btn" onclick="setHistoryFilter('push',this)">Push</button>
+        <button class="hf-btn" onclick="setHistoryFilter('pull',this)">Pull</button>
+        <button class="hf-btn" onclick="setHistoryFilter('legs',this)">Legs</button>
+        <button class="hf-btn" onclick="setHistoryFilter('arms',this)">Arms</button>
+        <button class="hf-btn" onclick="setHistoryFilter('chest_back',this)">C/B</button>
+      </div>
+      <div id="history-list"></div>
+      <div id="history-empty" class="empty" style="display:none">No workouts yet. Log your first workout!</div>
+    </div>
+
   </div>
 
   <!-- PROFILE -->
@@ -496,6 +531,13 @@
     <button class="rt-btn rt-skip" onclick="stopRestTimer(true)">Skip</button>
     <button class="rt-btn" onclick="adjustRestTimer(+30)">+30</button>
   </div>
+</div>
+
+<!-- DAY DETAIL SHEET -->
+<div class="dd-backdrop" id="day-detail-backdrop" onclick="closeDayDetail()"></div>
+<div class="dd-sheet" id="day-detail-sheet">
+  <div class="dd-handle-bar"><div class="dd-handle"></div></div>
+  <div class="dd-content" id="day-detail-content"></div>
 </div>
 
 <!-- GUIDE MODAL -->
