@@ -174,6 +174,10 @@
     <i data-lucide="calendar-days" class="tab-icon"></i>
     <span>Plan</span>
   </button>
+  <button class="tab-btn" onclick="showTab('analytics')">
+    <i data-lucide="bar-chart-2" class="tab-icon"></i>
+    <span>Stats</span>
+  </button>
 </div>
 
 <div class="main">
@@ -405,6 +409,54 @@
       <div id="prog-days-list"></div>
 
     </div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div class="section" id="tab-analytics">
+
+    <!-- Weekly summary cards -->
+    <div id="an-week-cards" class="an-week-cards"></div>
+
+    <!-- Volume per muscle group -->
+    <div class="card">
+      <div class="card-title">Weekly muscle volume <span class="card-subtitle">· last 7 days</span></div>
+      <div class="an-vol-legend">
+        <span class="an-vol-dot" style="background:#f59e0b"></span><span>Below target</span>
+        <span class="an-vol-dot" style="background:#22c55e"></span><span>On target</span>
+        <span class="an-vol-dot" style="background:var(--accent)"></span><span>Above target</span>
+      </div>
+      <div style="position:relative;height:280px;margin-top:6px">
+        <canvas id="an-volume-chart"></canvas>
+      </div>
+      <div id="an-volume-empty" class="empty" style="display:none">Log workouts to see muscle volume</div>
+    </div>
+
+    <!-- Estimated 1RM -->
+    <div class="card">
+      <div class="card-title">Estimated 1-rep max</div>
+      <div class="an-e1rm-subtitle">Epley formula · weight × (1 + reps ÷ 30)</div>
+      <select class="ex-select" id="an-e1rm-select" onchange="renderE1rmChart()" style="margin-top:10px;"></select>
+      <div style="position:relative;height:180px;margin-top:12px">
+        <canvas id="an-e1rm-chart"></canvas>
+      </div>
+      <div id="an-e1rm-empty" class="empty" style="display:none">No sessions logged for this exercise</div>
+    </div>
+
+    <!-- Training heatmap -->
+    <div class="card">
+      <div class="card-title">Training calendar <span class="card-subtitle">· last 12 weeks</span></div>
+      <div id="an-heatmap" style="margin-top:10px"></div>
+    </div>
+
+    <!-- Body weight trend + 7-day MA -->
+    <div class="card">
+      <div class="card-title">Body weight trend</div>
+      <div style="position:relative;height:180px;margin-top:4px">
+        <canvas id="an-bw-chart"></canvas>
+      </div>
+      <div id="an-bw-empty" class="empty" style="display:none">Log body weight to see trend</div>
+    </div>
+
   </div>
 
 </div>

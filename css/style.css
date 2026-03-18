@@ -700,6 +700,156 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
 }
 
 /* ============================================================
+   ANALYTICS TAB
+   ============================================================ */
+
+/* Card subtitle inline */
+.card-subtitle {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+/* ── Weekly summary cards ── */
+.an-week-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 4px 0 10px;
+}
+.an-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 8px 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.an-card-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+}
+.an-card-label {
+  font-size: 10px;
+  color: var(--text-3);
+  margin-top: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.an-arrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+.an-up   { color: #22c55e; }
+.an-down { color: var(--accent); }
+.an-flat { color: var(--text-3); }
+
+/* ── Volume legend ── */
+.an-vol-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 2px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.an-vol-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── e1RM subtitle ── */
+.an-e1rm-subtitle {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* ── Heatmap ── */
+.hm-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hm-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.hm-month-row {
+  align-items: flex-end;
+  margin-bottom: 1px;
+}
+.hm-day-gap {
+  width: 14px;
+  flex-shrink: 0;
+}
+.hm-day-lbl {
+  width: 14px;
+  flex-shrink: 0;
+  font-size: 9px;
+  color: var(--text-3);
+  text-align: right;
+  line-height: 1;
+}
+.hm-month-lbl {
+  flex: 1;
+  font-size: 9px;
+  color: var(--text-3);
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.hm-cell {
+  flex: 1;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  min-width: 0;
+  transition: opacity 0.15s;
+}
+.hm-rest    { background: var(--border); opacity: 0.7; }
+.hm-trained { background: var(--accent); opacity: 0.9; }
+.hm-future  { background: transparent; border: 1px dashed var(--border); }
+.hm-today   { outline: 1.5px solid var(--accent); outline-offset: 1px; }
+
+.hm-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+  align-items: center;
+}
+.hm-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.hm-legend-item .hm-cell {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  aspect-ratio: unset;
+  flex-shrink: 0;
+}
+
+/* dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .hm-trained { opacity: 1; }
+  .an-up   { color: #4ade80; }
+}
+
+/* ============================================================
    EXERCISE INFO BUTTON
    ============================================================ */
 .ex-name-row {

@@ -140,7 +140,7 @@ let currentDay = 'push';
 let currentSets = {};
 
 function showTab(t) {
-  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile','program'][i]===t));
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile','program','analytics'][i]===t));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(t==='bodyweight') renderBW();
@@ -148,6 +148,7 @@ function showTab(t) {
   if(t==='history') renderHistory();
   if(t==='profile') renderProfile();
   if(t==='program') renderProgram();
+  if(t==='analytics') renderAnalytics();
 }
 
 function startWorkout(day) {
@@ -1465,6 +1466,416 @@ function updateProgressionAfterWorkout(setsToSave) {
   });
 
   saveProgressionLog(log);
+}
+
+// ============================================================
+// ANALYTICS TAB
+// ============================================================
+let anVolumeChart = null;
+let anE1rmChart   = null;
+let anBwChart     = null;
+
+const MUSCLE_ORDER  = ['chest','back','shoulders','biceps','triceps','quads','hamstrings','glutes','calves'];
+const MUSCLE_LABELS_MAP = {
+  chest:'Chest', back:'Back', shoulders:'Shoulders', biceps:'Biceps',
+  triceps:'Triceps', quads:'Quads', hamstrings:'Hamstrings', glutes:'Glutes', calves:'Calves',
+};
+
+function calcE1rm(weight, reps) {
+  if (!weight || !reps || reps < 1) return 0;
+  return Math.round(weight * (1 + reps / 30) * 10) / 10;
+}
+
+// Count sets per primary muscle group across workouts in the last `daysBack` days
+function getWeeklyMuscleSets(workouts, daysBack) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - (daysBack || 7));
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+
+  const sets = {};
+  MUSCLE_ORDER.forEach(m => { sets[m] = 0; });
+
+  workouts.filter(w => w.date >= cutoffStr).forEach(w => {
+    Object.entries(w.sets || {}).forEach(([exId, exSets]) => {
+      const ex = EXERCISE_DB.find(e => e.id === exId) || getAllExercises().find(e => e.id === exId);
+      if (!ex || !ex.muscles || !ex.muscles.length) return;
+      const primary = ex.muscles[0];
+      if (MUSCLE_ORDER.includes(primary)) sets[primary] += exSets.length;
+    });
+  });
+
+  return sets;
+}
+
+function renderAnalytics() {
+  const db = getDB();
+  const profile = getUserProfile();
+  renderAnWeekCards(db);
+  renderAnVolumeChart(db, profile);
+  populateAnE1rmSelect();
+  renderE1rmChart();
+  renderHeatmap(db);
+  renderAnBwChart(db);
+}
+
+// ── Weekly summary cards ──────────────────────────────────────
+function renderAnWeekCards(db) {
+  const now      = new Date();
+  const d7Str    = new Date(now - 7  * 86400000).toISOString().split('T')[0];
+  const d14Str   = new Date(now - 14 * 86400000).toISOString().split('T')[0];
+  const todayStr = now.toISOString().split('T')[0];
+
+  const thisW = db.workouts.filter(w => w.date > d7Str  && w.date <= todayStr);
+  const lastW = db.workouts.filter(w => w.date > d14Str && w.date <= d7Str);
+
+  function vol(arr) {
+    return arr.reduce((t, w) =>
+      t + Object.values(w.sets || {}).reduce((a, sets) =>
+        a + sets.reduce((b, s) => b + (parseFloat(s.weight)||0)*(parseInt(s.reps)||0), 0), 0), 0);
+  }
+  function totalSets(arr) {
+    return arr.reduce((t, w) =>
+      t + Object.values(w.sets || {}).reduce((a, s) => a + s.length, 0), 0);
+  }
+
+  const thisVol  = vol(thisW),  lastVol  = vol(lastW);
+  const thisSets = totalSets(thisW), lastSets = totalSets(lastW);
+
+  function arrow(curr, prev) {
+    if (!prev) return '';
+    const pct = Math.round((curr - prev) / prev * 100);
+    if (pct > 0)  return `<span class="an-arrow an-up">↑ ${pct}%</span>`;
+    if (pct < 0)  return `<span class="an-arrow an-down">↓ ${Math.abs(pct)}%</span>`;
+    return `<span class="an-arrow an-flat">→ 0%</span>`;
+  }
+
+  const volDisp  = thisVol  >= 1000 ? (thisVol /1000).toFixed(1)+'k' : Math.round(thisVol).toString();
+
+  document.getElementById('an-week-cards').innerHTML = `
+    <div class="an-card">
+      <div class="an-card-val">${thisW.length}</div>
+      <div class="an-card-label">Workouts</div>
+      ${arrow(thisW.length, lastW.length)}
+    </div>
+    <div class="an-card">
+      <div class="an-card-val">${volDisp}</div>
+      <div class="an-card-label">Volume kg</div>
+      ${arrow(thisVol, lastVol)}
+    </div>
+    <div class="an-card">
+      <div class="an-card-val">${thisSets}</div>
+      <div class="an-card-label">Total sets</div>
+      ${arrow(thisSets, lastSets)}
+    </div>
+  `;
+}
+
+// ── Volume per muscle bar chart ───────────────────────────────
+function renderAnVolumeChart(db, profile) {
+  const experience = profile?.experience || 'intermediate';
+  const target = WEEKLY_SETS_TARGET[experience] || {min:14, max:18};
+  const muscleSets = getWeeklyMuscleSets(db.workouts, 7);
+
+  const labels  = MUSCLE_ORDER.map(m => MUSCLE_LABELS_MAP[m]);
+  const data    = MUSCLE_ORDER.map(m => muscleSets[m] || 0);
+  const hasData = data.some(v => v > 0);
+
+  const empty  = document.getElementById('an-volume-empty');
+  const canvas = document.getElementById('an-volume-chart');
+
+  if (!hasData) {
+    empty.style.display = 'block';
+    canvas.style.display = 'none';
+    if (anVolumeChart) { anVolumeChart.destroy(); anVolumeChart = null; }
+    return;
+  }
+  empty.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const bgColors = data.map(v => {
+    if (v === 0 || v < target.min) return '#f59e0b';
+    if (v > target.max) return 'rgba(232,59,59,0.85)';
+    return '#22c55e';
+  });
+
+  const ctx = canvas.getContext('2d');
+  if (anVolumeChart) anVolumeChart.destroy();
+
+  anVolumeChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: bgColors,
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => `${c.raw} sets  (target ${target.min}–${target.max})`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          min: 0,
+          ticks: { font: {size:11}, stepSize: 2 },
+          grid: { color: 'rgba(128,128,128,0.1)' },
+        },
+        y: {
+          ticks: { font: {size:11} },
+          grid: { display: false },
+        }
+      },
+      responsive: true,
+      maintainAspectRatio: false,
+    }
+  });
+}
+
+// ── e1RM line chart ───────────────────────────────────────────
+function populateAnE1rmSelect() {
+  document.getElementById('an-e1rm-select').innerHTML =
+    getAllExercises().map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+}
+
+function renderE1rmChart() {
+  const exId = document.getElementById('an-e1rm-select').value;
+  const db   = getDB();
+
+  const sessions = db.workouts
+    .filter(w => w.sets && w.sets[exId])
+    .map(w => {
+      const best = Math.max(...w.sets[exId].map(s =>
+        calcE1rm(parseFloat(s.weight)||0, parseInt(s.reps)||0)));
+      return { date: w.date, e1rm: best };
+    })
+    .filter(s => s.e1rm > 0);
+
+  const empty  = document.getElementById('an-e1rm-empty');
+  const canvas = document.getElementById('an-e1rm-chart');
+
+  if (!sessions.length) {
+    empty.style.display = 'block';
+    canvas.style.display = 'none';
+    if (anE1rmChart) { anE1rmChart.destroy(); anE1rmChart = null; }
+    return;
+  }
+  empty.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const labels = sessions.map(s => s.date.slice(5));
+  const data   = sessions.map(s => Math.round(s.e1rm * 10) / 10);
+  const {accent, accentLight} = getAccentColors();
+  const yMin = Math.floor(Math.min(...data) * 0.93);
+  const yMax = Math.ceil(Math.max(...data)  * 1.07);
+
+  const ctx = canvas.getContext('2d');
+  if (anE1rmChart) anE1rmChart.destroy();
+
+  anE1rmChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'e1RM',
+        data,
+        borderColor: accent,
+        backgroundColor: accentLight,
+        tension: 0.3,
+        pointRadius: 4,
+        pointBackgroundColor: accent,
+        borderWidth: 2,
+        fill: true,
+      }]
+    },
+    options: {
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => `e1RM: ${c.raw} kg` } }
+      },
+      scales: {
+        y: {
+          min: yMin, max: yMax,
+          ticks: { font: {size:11}, callback: v => v+' kg' },
+          grid: { color: 'rgba(128,128,128,0.1)' },
+        },
+        x: {
+          ticks: { font: {size:10}, maxTicksLimit: 7 },
+          grid: { display: false },
+        }
+      },
+      responsive: true,
+      maintainAspectRatio: false,
+    }
+  });
+}
+
+// ── Training heatmap ──────────────────────────────────────────
+function renderHeatmap(db) {
+  const container  = document.getElementById('an-heatmap');
+  const trainedSet = new Set(db.workouts.map(w => w.date));
+
+  const today = new Date();
+  today.setHours(12,0,0,0);
+  const todayStr = today.toISOString().split('T')[0];
+
+  // Start on the Monday 12 weeks ago (so we always show full weeks Mon–Sun)
+  const dowOffset = (today.getDay() + 6) % 7; // 0=Mon … 6=Sun
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() - dowOffset - 11 * 7);
+
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAY_INITIALS = ['M','T','W','T','F','S','S'];
+
+  // Build 12-week matrix [week][day]
+  const weeks = [];
+  const cur = new Date(startDate);
+  for (let w = 0; w < 12; w++) {
+    const days = [];
+    for (let d = 0; d < 7; d++) {
+      const ds = cur.toISOString().split('T')[0];
+      days.push({
+        date: ds,
+        trained: trainedSet.has(ds),
+        isToday: ds === todayStr,
+        isFuture: ds > todayStr,
+        month: cur.getMonth(),
+      });
+      cur.setDate(cur.getDate() + 1);
+    }
+    weeks.push(days);
+  }
+
+  // Month label row
+  let lastMonth = -1;
+  let monthRow = '<div class="hm-day-gap"></div>';
+  weeks.forEach(week => {
+    const m = week[0].month;
+    monthRow += `<div class="hm-month-lbl">${m !== lastMonth ? MONTH_NAMES[m] : ''}</div>`;
+    lastMonth = m;
+  });
+
+  // Day rows
+  let dayRows = '';
+  DAY_INITIALS.forEach((lbl, dIdx) => {
+    let row = `<div class="hm-day-lbl">${lbl}</div>`;
+    weeks.forEach(week => {
+      const cell = week[dIdx];
+      let cls = 'hm-cell';
+      if (cell.isFuture)      cls += ' hm-future';
+      else if (cell.trained)  cls += ' hm-trained';
+      else                    cls += ' hm-rest';
+      if (cell.isToday)       cls += ' hm-today';
+      row += `<div class="${cls}" title="${cell.date}"></div>`;
+    });
+    dayRows += `<div class="hm-row">${row}</div>`;
+  });
+
+  container.innerHTML = `
+    <div class="hm-grid">
+      <div class="hm-row hm-month-row">${monthRow}</div>
+      ${dayRows}
+    </div>
+    <div class="hm-legend">
+      <div class="hm-legend-item"><div class="hm-cell hm-rest"></div><span>Rest</span></div>
+      <div class="hm-legend-item"><div class="hm-cell hm-trained"></div><span>Trained</span></div>
+    </div>
+  `;
+}
+
+// ── Body weight + 7-day MA ────────────────────────────────────
+function renderAnBwChart(db) {
+  const entries = db.bw.slice(-60);
+  const canvas  = document.getElementById('an-bw-chart');
+  const empty   = document.getElementById('an-bw-empty');
+
+  if (entries.length < 2) {
+    empty.style.display = 'block';
+    canvas.style.display = 'none';
+    if (anBwChart) { anBwChart.destroy(); anBwChart = null; }
+    return;
+  }
+  empty.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const labels  = entries.map(e => e.date.slice(5));
+  const weights = entries.map(e => e.weight);
+
+  // 7-day moving average
+  const ma7 = weights.map((_, i) => {
+    const slice = weights.slice(Math.max(0, i - 6), i + 1);
+    return Math.round(slice.reduce((a, b) => a + b, 0) / slice.length * 10) / 10;
+  });
+
+  const {accent, accentLight} = getAccentColors();
+  const allVals = [...weights, ...ma7];
+  const yCenter = (Math.min(...allVals) + Math.max(...allVals)) / 2;
+  const yHalf   = Math.max((Math.max(...allVals) - Math.min(...allVals)) / 2 + 1, 3);
+
+  const ctx = canvas.getContext('2d');
+  if (anBwChart) anBwChart.destroy();
+
+  anBwChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Daily',
+          data: weights,
+          borderColor: 'rgba(150,150,150,0.45)',
+          backgroundColor: 'transparent',
+          tension: 0,
+          pointRadius: 2,
+          borderWidth: 1,
+          fill: false,
+        },
+        {
+          label: '7-day avg',
+          data: ma7,
+          borderColor: accent,
+          backgroundColor: accentLight,
+          tension: 0.4,
+          pointRadius: 0,
+          borderWidth: 2.5,
+          fill: true,
+        }
+      ]
+    },
+    options: {
+      animation: false,
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { font: {size:11}, boxWidth: 18, padding: 10 }
+        },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.raw + ' kg' } }
+      },
+      scales: {
+        y: {
+          min: Math.floor(yCenter - yHalf),
+          max: Math.ceil(yCenter + yHalf),
+          ticks: { font: {size:11}, callback: v => v + ' kg' },
+          grid: { color: 'rgba(128,128,128,0.1)' },
+        },
+        x: {
+          ticks: { font: {size:10}, maxTicksLimit: 8 },
+          grid: { display: false },
+        }
+      },
+      responsive: true,
+      maintainAspectRatio: false,
+    }
+  });
 }
 
 // ============================================================
