@@ -12,6 +12,139 @@
 </head>
 <body>
 
+<!-- ONBOARDING OVERLAY -->
+<div id="onboarding-overlay">
+  <div class="ob-top">
+    <div class="ob-logo">Fit<span>Track</span></div>
+    <div class="ob-progress-track">
+      <div class="ob-progress-fill" id="ob-progress-fill"></div>
+    </div>
+    <div class="ob-step-counter" id="ob-step-counter">1 of 5</div>
+  </div>
+
+  <div class="ob-steps-wrap">
+
+    <!-- Step 1: Goal -->
+    <div class="ob-step ob-active" id="ob-step-1">
+      <div class="ob-title">What's your goal?</div>
+      <div class="ob-subtitle">We'll personalise your FitTrack experience</div>
+      <div class="ob-options">
+        <div class="ob-option-card ob-goal-card" data-value="muscle" onclick="selectGoal(this)">
+          <div class="ob-option-icon"><i data-lucide="dumbbell"></i></div>
+          <div>
+            <div class="ob-option-title">Build Muscle</div>
+            <div class="ob-option-sub">Increase mass &amp; definition</div>
+          </div>
+          <i data-lucide="check" class="ob-check"></i>
+        </div>
+        <div class="ob-option-card ob-goal-card" data-value="weight" onclick="selectGoal(this)">
+          <div class="ob-option-icon"><i data-lucide="flame"></i></div>
+          <div>
+            <div class="ob-option-title">Lose Weight</div>
+            <div class="ob-option-sub">Burn fat &amp; improve fitness</div>
+          </div>
+          <i data-lucide="check" class="ob-check"></i>
+        </div>
+        <div class="ob-option-card ob-goal-card" data-value="strength" onclick="selectGoal(this)">
+          <div class="ob-option-icon"><i data-lucide="zap"></i></div>
+          <div>
+            <div class="ob-option-title">Gain Strength</div>
+            <div class="ob-option-sub">Lift more &amp; build power</div>
+          </div>
+          <i data-lucide="check" class="ob-check"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Experience -->
+    <div class="ob-step ob-next" id="ob-step-2">
+      <div class="ob-title">Experience level</div>
+      <div class="ob-subtitle">How long have you been training?</div>
+      <div class="ob-options">
+        <div class="ob-option-card ob-exp-card" data-value="beginner" onclick="selectExperience(this)">
+          <div class="ob-option-icon"><i data-lucide="star"></i></div>
+          <div>
+            <div class="ob-option-title">Beginner</div>
+            <div class="ob-option-sub">Less than 1 year</div>
+          </div>
+          <i data-lucide="check" class="ob-check"></i>
+        </div>
+        <div class="ob-option-card ob-exp-card" data-value="intermediate" onclick="selectExperience(this)">
+          <div class="ob-option-icon"><i data-lucide="trending-up"></i></div>
+          <div>
+            <div class="ob-option-title">Intermediate</div>
+            <div class="ob-option-sub">1 – 3 years</div>
+          </div>
+          <i data-lucide="check" class="ob-check"></i>
+        </div>
+        <div class="ob-option-card ob-exp-card" data-value="advanced" onclick="selectExperience(this)">
+          <div class="ob-option-icon"><i data-lucide="award"></i></div>
+          <div>
+            <div class="ob-option-title">Advanced</div>
+            <div class="ob-option-sub">3+ years</div>
+          </div>
+          <i data-lucide="check" class="ob-check"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Training days -->
+    <div class="ob-step ob-next" id="ob-step-3">
+      <div class="ob-title">Training days</div>
+      <div class="ob-subtitle">How many days per week can you train?</div>
+      <div class="ob-days-wrap">
+        <div class="ob-days-display">
+          <span class="ob-days-big" id="ob-days-val">4</span>
+          <span class="ob-days-unit">days / week</span>
+        </div>
+        <div class="ob-day-btn-group">
+          <button class="ob-day-opt" data-val="2" onclick="selectObDays(this)">2</button>
+          <button class="ob-day-opt" data-val="3" onclick="selectObDays(this)">3</button>
+          <button class="ob-day-opt ob-day-active" data-val="4" onclick="selectObDays(this)">4</button>
+          <button class="ob-day-opt" data-val="5" onclick="selectObDays(this)">5</button>
+          <button class="ob-day-opt" data-val="6" onclick="selectObDays(this)">6</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Equipment -->
+    <div class="ob-step ob-next" id="ob-step-4">
+      <div class="ob-title">Available equipment</div>
+      <div class="ob-subtitle">Select everything you have access to</div>
+      <div class="ob-chips-wrap">
+        <div class="ob-chip" data-value="Barbell" onclick="toggleObEquip(this)">Barbell</div>
+        <div class="ob-chip" data-value="Dumbbells" onclick="toggleObEquip(this)">Dumbbells</div>
+        <div class="ob-chip" data-value="Cables" onclick="toggleObEquip(this)">Cables</div>
+        <div class="ob-chip" data-value="Machines" onclick="toggleObEquip(this)">Machines</div>
+        <div class="ob-chip" data-value="Bodyweight" onclick="toggleObEquip(this)">Bodyweight</div>
+      </div>
+    </div>
+
+    <!-- Step 5: Body weight -->
+    <div class="ob-step ob-next" id="ob-step-5">
+      <div class="ob-title">Current body weight</div>
+      <div class="ob-subtitle">We'll track your progress over time</div>
+      <div class="ob-bw-wrap">
+        <div class="ob-bw-row">
+          <input type="number" id="ob-bw-input" class="ob-bw-input" inputmode="decimal"
+            placeholder="70.0" min="30" max="300" step="0.5">
+          <span class="ob-bw-unit">kg</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /ob-steps-wrap -->
+
+  <div class="ob-nav">
+    <button class="ob-back-btn" id="ob-back-btn" onclick="obBack()">
+      <i data-lucide="arrow-left" style="width:18px;height:18px;"></i> Back
+    </button>
+    <button class="ob-next-btn" id="ob-next-btn" onclick="obNext()">
+      Next <i data-lucide="arrow-right" style="width:18px;height:18px;"></i>
+    </button>
+  </div>
+</div><!-- /onboarding-overlay -->
+
 <div class="header">
   <h1>Fit<span>Track</span></h1>
 </div>
@@ -28,6 +161,14 @@
   <button class="tab-btn" onclick="showTab('progress')">
     <i data-lucide="trending-up" class="tab-icon"></i>
     <span>Progress</span>
+  </button>
+  <button class="tab-btn" onclick="showTab('history')">
+    <i data-lucide="history" class="tab-icon"></i>
+    <span>History</span>
+  </button>
+  <button class="tab-btn" onclick="showTab('profile')">
+    <i data-lucide="user" class="tab-icon"></i>
+    <span>Profile</span>
   </button>
 </div>
 
@@ -174,6 +315,41 @@
     <div class="card">
       <div class="card-title">Recent sessions</div>
       <div id="progress-history"><div class="empty">No data yet</div></div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="section" id="tab-history">
+    <div class="card" id="history-summary-card" style="display:none">
+      <div class="stat-grid" id="history-stats"></div>
+    </div>
+    <div class="history-filter-bar">
+      <button class="hf-btn active" onclick="setHistoryFilter('all',this)">All</button>
+      <button class="hf-btn" onclick="setHistoryFilter('push',this)">Push</button>
+      <button class="hf-btn" onclick="setHistoryFilter('pull',this)">Pull</button>
+      <button class="hf-btn" onclick="setHistoryFilter('legs',this)">Legs</button>
+      <button class="hf-btn" onclick="setHistoryFilter('arms',this)">Arms</button>
+      <button class="hf-btn" onclick="setHistoryFilter('chest_back',this)">C/B</button>
+    </div>
+    <div id="history-list"></div>
+    <div id="history-empty" class="empty" style="display:none">No workouts yet. Log your first workout!</div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="section" id="tab-profile">
+    <div class="choose-title" style="font-size:22px;margin:16px 0 12px;">Your Profile</div>
+    <div class="card">
+      <div class="card-title">Goals &amp; Level</div>
+      <div id="profile-content"><div class="empty">No profile set up yet.</div></div>
+    </div>
+    <button class="save-btn" onclick="editProfile()" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px;">
+      <i data-lucide="pencil" style="width:16px;height:16px;"></i> Edit Profile
+    </button>
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">App Data</div>
+      <button class="danger-btn" onclick="clearAllData()">
+        <i data-lucide="trash-2" style="width:15px;height:15px;"></i> Clear all workout data
+      </button>
     </div>
   </div>
 

@@ -56,7 +56,6 @@ const EXERCISES = {
   ],
 };
 
-// All unique exercises across all types (deduplicated by id)
 const ALL_EX = Object.values(EXERCISES).flat().filter((ex, idx, arr) =>
   arr.findIndex(e => e.id === ex.id) === idx
 );
@@ -112,11 +111,11 @@ function hideAddExerciseForm() {
 function addCustomExercise() {
   const nameEl = document.getElementById('new-ex-name');
   const day = document.getElementById('new-ex-day').value;
-  const equipment = document.getElementById('new-ex-equip').value;
+  const type = document.getElementById('new-ex-equip').value; // FIX: store as 'type'
   const name = nameEl.value.trim();
   if(!name){ showToast('Enter a name'); nameEl.focus(); return; }
   const id = 'custom_' + Date.now();
-  addCustomExerciseToStore({id,name,day,equipment});
+  addCustomExerciseToStore({id, name, day, type}); // FIX: was {id,name,day,equipment}
   showToast('Exercise added');
   hideAddExerciseForm();
   loadDayExercises();
@@ -141,11 +140,13 @@ let currentDay = 'push';
 let currentSets = {};
 
 function showTab(t) {
-  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress'][i]===t));
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile'][i]===t));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(t==='bodyweight') renderBW();
   if(t==='progress') { populateProgressSelect(); renderProgressChart(); }
+  if(t==='history') renderHistory();
+  if(t==='profile') renderProfile();
 }
 
 function startWorkout(day) {
@@ -187,11 +188,12 @@ function buildExBlock(ex, initialSets, lastDate) {
     ? `Last: ${lastDate} · ${initialSets.length}×${initialSets[0]?.weight||'–'}kg`
     : 'No previous session';
   const deleteBtn = ex.custom ? `<button class="del-ex-btn" onclick="deleteCustomExercise('${ex.id}');event.stopPropagation();"><i data-lucide="x" style="width:16px;height:16px;"></i></button>` : '';
+  const equipDisplay = ex.type || ex.equipment || ''; // FIX: handle legacy 'equipment' field
   div.innerHTML = `
     <div class="ex-header" onclick="toggleEx('${ex.id}')">
       <div>
         <div class="ex-name">${ex.name}</div>
-        <div style="font-size:12px;color:var(--text-3);margin-top:2px">${ex.type}</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px">${equipDisplay}</div>
       </div>
       <div class="ex-meta">
         <span id="badge-${ex.id}">${initialSets.length} set${initialSets.length!==1?'s':''}</span>
@@ -385,4 +387,505 @@ function renderProgressChart() {
   });
 }
 
-lucide.createIcons();
+// ============================================================
+// HISTORY TAB
+// ============================================================
+let historyFilter = 'all';
+let historyEditData = null; // { idx, sets }
+
+function calculateStreak(workouts) {
+  if (!workouts.length) return 0;
+  const uniqueDates = [...new Set(workouts.map(w => w.date))].sort().reverse();
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  if (uniqueDates[0] !== today && uniqueDates[0] !== yesterday) return 0;
+  let streak = 1;
+  for (let i = 1; i < uniqueDates.length; i++) {
+    const a = new Date(uniqueDates[i-1]+'T12:00:00');
+    const b = new Date(uniqueDates[i]+'T12:00:00');
+    const diff = Math.round((a - b) / 86400000);
+    if (diff === 1) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function renderHistory() {
+  const db = getDB();
+  const allWorkouts = db.workouts;
+  const historyList = document.getElementById('history-list');
+  const historyEmpty = document.getElementById('history-empty');
+  const summaryCard = document.getElementById('history-summary-card');
+
+  if (!allWorkouts.length) {
+    historyList.innerHTML = '';
+    historyEmpty.style.display = 'block';
+    summaryCard.style.display = 'none';
+    return;
+  }
+  historyEmpty.style.display = 'none';
+  summaryCard.style.display = 'block';
+
+  const today = new Date();
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
+  weekStart.setHours(0,0,0,0);
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const thisWeek = allWorkouts.filter(w => w.date >= weekStartStr).length;
+  const streak = calculateStreak(allWorkouts);
+
+  document.getElementById('history-stats').innerHTML = `
+    <div class="stat-box"><div class="sv">${allWorkouts.length}</div><div class="sl">Total</div></div>
+    <div class="stat-box"><div class="sv">${thisWeek}</div><div class="sl">This week</div></div>
+    <div class="stat-box"><div class="sv">${streak}</div><div class="sl">Day streak</div></div>`;
+
+  // Build indexed list newest first
+  const indexed = allWorkouts.map((w, i) => ({w, i})).reverse();
+  const filtered = historyFilter === 'all' ? indexed : indexed.filter(({w}) => w.day === historyFilter);
+
+  historyList.innerHTML = '';
+  filtered.forEach(({w, i}) => {
+    historyList.appendChild(buildHistoryCard(w, i));
+  });
+  lucide.createIcons();
+}
+
+function buildHistoryCard(workout, idx) {
+  const div = document.createElement('div');
+  div.className = 'card hcard';
+  div.id = 'hcard-' + idx;
+
+  const sets = workout.sets || {};
+  const exIds = Object.keys(sets);
+  const exCount = exIds.length;
+  const totalSets = exIds.reduce((a, id) => a + (sets[id]||[]).length, 0);
+  const totalVol = exIds.reduce((a, id) =>
+    a + (sets[id]||[]).reduce((b, s) => b + (parseFloat(s.weight)||0) * (parseInt(s.reps)||0), 0), 0);
+
+  const allEx = getAllExercises();
+  const exPreview = exIds.slice(0, 2).map(id => {
+    const ex = allEx.find(e => e.id === id);
+    return ex ? ex.name : id;
+  }).join(', ') + (exCount > 2 ? ` +${exCount-2}` : '');
+
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  let dateStr;
+  if (workout.date === today) dateStr = 'Today';
+  else if (workout.date === yesterday) dateStr = 'Yesterday';
+  else {
+    const d = new Date(workout.date + 'T12:00:00');
+    dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+  }
+
+  div.innerHTML = `
+    <div class="hc-header" onclick="toggleHistoryCard(${idx})">
+      <div class="hc-left">
+        <div class="hc-date-row">
+          <span class="hc-date">${dateStr}</span>
+          <span class="hc-type-tag">${DAY_LABELS[workout.day]||workout.day}</span>
+        </div>
+        <div class="hc-ex-preview">${exPreview || 'No exercises'}</div>
+      </div>
+      <div class="hc-right">
+        <div class="hc-meta">${exCount} ex · ${totalSets} sets</div>
+        <div class="hc-vol">${Math.round(totalVol)} kg vol</div>
+        <i data-lucide="chevron-down" class="ex-arrow" id="hc-arrow-${idx}" style="width:16px;height:16px;"></i>
+      </div>
+    </div>
+    <div class="hc-body" id="hc-body-${idx}" style="display:none"></div>`;
+
+  return div;
+}
+
+function toggleHistoryCard(idx) {
+  const body = document.getElementById('hc-body-' + idx);
+  const arrow = document.getElementById('hc-arrow-' + idx);
+  if (body.style.display === 'block') {
+    body.style.display = 'none';
+    arrow.classList.remove('open');
+  } else {
+    body.style.display = 'block';
+    arrow.classList.add('open');
+    renderHistoryBody(idx, false);
+  }
+}
+
+function renderHistoryBody(idx, editMode) {
+  const db = getDB();
+  const workout = db.workouts[idx];
+  const body = document.getElementById('hc-body-' + idx);
+  const srcSets = editMode && historyEditData && historyEditData.idx === idx
+    ? historyEditData.sets
+    : (workout.sets || {});
+  const allEx = getAllExercises();
+
+  let html = '<div class="hc-exercises">';
+  Object.entries(srcSets).forEach(([exId, exSets]) => {
+    const ex = allEx.find(e => e.id === exId);
+    const exName = ex ? ex.name : exId;
+    const exType = ex ? (ex.type || ex.equipment || '') : '';
+    html += `<div class="hc-ex-item">
+      <div class="hc-ex-name">${exName}<span class="hc-ex-type">${exType ? ' · '+exType : ''}</span></div>`;
+
+    if (editMode) {
+      html += `<div class="sets-header"><span>#</span><span>Reps</span><span>kg</span><span></span></div>`;
+      exSets.forEach((s, si) => {
+        html += `<div class="set-row">
+          <span class="set-num">${si+1}</span>
+          <input type="number" inputmode="numeric" value="${s.reps||''}" placeholder="10"
+            onchange="updateHistorySet(${idx},'${exId}',${si},'reps',this.value)">
+          <input type="number" inputmode="decimal" step="0.5" value="${s.weight||''}" placeholder="kg"
+            onchange="updateHistorySet(${idx},'${exId}',${si},'weight',this.value)">
+          <button class="del-set" onclick="removeHistorySet(${idx},'${exId}',${si})">×</button>
+        </div>`;
+      });
+      html += `<button class="add-set-btn" onclick="addHistorySet(${idx},'${exId}')" style="display:flex;align-items:center;gap:4px;margin-top:4px;">
+        <i data-lucide="plus" style="width:13px;height:13px;"></i> Add set</button>`;
+    } else {
+      html += `<div class="hc-sets-row">` +
+        exSets.map((s, si) => `<span class="hc-set-chip">${si+1}: ${s.reps||0}×${s.weight||0}kg</span>`).join('') +
+        `</div>`;
+    }
+    html += `</div>`;
+  });
+  html += `</div>`;
+
+  // Action buttons
+  html += `<div class="hc-actions" id="hc-actions-${idx}">`;
+  if (editMode) {
+    html += `
+      <button class="hc-btn hc-save" onclick="saveHistoryEdit(${idx})">
+        <i data-lucide="check" style="width:14px;height:14px;"></i> Save
+      </button>
+      <button class="hc-btn hc-cancel" onclick="cancelHistoryEdit(${idx})">Cancel</button>`;
+  } else {
+    html += `
+      <button class="hc-btn hc-edit" onclick="startHistoryEdit(${idx})">
+        <i data-lucide="pencil" style="width:14px;height:14px;"></i> Edit
+      </button>
+      <button class="hc-btn hc-redo" onclick="redoWorkout(${idx})">
+        <i data-lucide="repeat" style="width:14px;height:14px;"></i> Redo
+      </button>
+      <button class="hc-btn hc-delete" onclick="deleteWorkout(${idx})">
+        <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Delete
+      </button>`;
+  }
+  html += `</div>`;
+
+  body.innerHTML = html;
+  lucide.createIcons();
+}
+
+function startHistoryEdit(idx) {
+  const db = getDB();
+  historyEditData = { idx, sets: JSON.parse(JSON.stringify(db.workouts[idx].sets || {})) };
+  renderHistoryBody(idx, true);
+}
+
+function updateHistorySet(idx, exId, si, field, val) {
+  if (!historyEditData || historyEditData.idx !== idx) return;
+  if (!historyEditData.sets[exId][si]) historyEditData.sets[exId][si] = {};
+  historyEditData.sets[exId][si][field] = field === 'reps' ? parseInt(val)||0 : parseFloat(val)||'';
+}
+
+function addHistorySet(idx, exId) {
+  if (!historyEditData || historyEditData.idx !== idx) return;
+  const sets = historyEditData.sets[exId] || [];
+  const last = sets[sets.length-1] || {reps:10, weight:''};
+  historyEditData.sets[exId].push({...last});
+  renderHistoryBody(idx, true);
+}
+
+function removeHistorySet(idx, exId, si) {
+  if (!historyEditData || historyEditData.idx !== idx) return;
+  if ((historyEditData.sets[exId]||[]).length <= 1) return;
+  historyEditData.sets[exId].splice(si, 1);
+  renderHistoryBody(idx, true);
+}
+
+function saveHistoryEdit(idx) {
+  if (!historyEditData || historyEditData.idx !== idx) return;
+  const db = getDB();
+  db.workouts[idx].sets = historyEditData.sets;
+  saveDB(db);
+  historyEditData = null;
+  showToast('Workout updated!');
+  renderHistoryBody(idx, false);
+}
+
+function cancelHistoryEdit(idx) {
+  historyEditData = null;
+  renderHistoryBody(idx, false);
+}
+
+function deleteWorkout(idx) {
+  // Inline confirmation
+  const actions = document.getElementById('hc-actions-' + idx);
+  actions.innerHTML = `
+    <span class="hc-confirm-msg">Delete this workout?</span>
+    <button class="hc-btn hc-delete" onclick="confirmDeleteWorkout(${idx})">Yes, delete</button>
+    <button class="hc-btn hc-cancel" onclick="renderHistoryBody(${idx},false)">Cancel</button>`;
+  lucide.createIcons();
+}
+
+function confirmDeleteWorkout(idx) {
+  const db = getDB();
+  db.workouts.splice(idx, 1);
+  saveDB(db);
+  showToast('Workout deleted');
+  renderHistory();
+}
+
+function redoWorkout(idx) {
+  const db = getDB();
+  const w = db.workouts[idx];
+  currentDay = w.day;
+  currentSets = JSON.parse(JSON.stringify(w.sets || {}));
+
+  // Switch to workout tab and show logging view
+  showTab('workout');
+  document.getElementById('workout-choose').style.display = 'none';
+  document.getElementById('workout-logging').style.display = 'block';
+  document.getElementById('workout-day-label').textContent = (DAY_LABELS[w.day]||w.day) + ' (repeat)';
+
+  const list = document.getElementById('exercises-list');
+  list.innerHTML = '';
+  const allEx = getAllExercises();
+  Object.keys(w.sets||{}).forEach(exId => {
+    const ex = allEx.find(e => e.id === exId) || {id:exId, name:exId, type:''};
+    list.appendChild(buildExBlock(ex, w.sets[exId], w.date));
+  });
+
+  showToast('Workout loaded — edit & save!');
+}
+
+function setHistoryFilter(day, btn) {
+  historyFilter = day;
+  document.querySelectorAll('.hf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHistory();
+}
+
+// ============================================================
+// PROFILE TAB
+// ============================================================
+function getUserProfile() {
+  try { return JSON.parse(localStorage.getItem('userProfile') || 'null'); }
+  catch { return null; }
+}
+function saveUserProfile(p) { localStorage.setItem('userProfile', JSON.stringify(p)); }
+
+function renderProfile() {
+  const profile = getUserProfile();
+  const el = document.getElementById('profile-content');
+  if (!profile) {
+    el.innerHTML = `<div class="empty">No profile yet.</div>`;
+    return;
+  }
+  const goalLabels = {muscle:'Build Muscle', weight:'Lose Weight', strength:'Gain Strength'};
+  const expLabels  = {beginner:'Beginner', intermediate:'Intermediate', advanced:'Advanced'};
+  el.innerHTML = `
+    <div class="prof-row"><span class="prof-label">Goal</span><span class="prof-val">${goalLabels[profile.goal]||profile.goal||'—'}</span></div>
+    <div class="prof-row"><span class="prof-label">Experience</span><span class="prof-val">${expLabels[profile.experience]||profile.experience||'—'}</span></div>
+    <div class="prof-row"><span class="prof-label">Training days</span><span class="prof-val">${profile.trainingDays||'—'} days / week</span></div>
+    <div class="prof-row"><span class="prof-label">Equipment</span><span class="prof-val">${(profile.equipment||[]).join(', ')||'—'}</span></div>
+    <div class="prof-row"><span class="prof-label">Body weight</span><span class="prof-val">${profile.bodyWeight||'—'} kg</span></div>`;
+}
+
+function editProfile() {
+  const profile = getUserProfile();
+  if (profile) {
+    obData = {...profile, equipment: [...(profile.equipment||[])]};
+  } else {
+    obData = {goal:null, experience:null, trainingDays:4, equipment:[], bodyWeight:null};
+  }
+  // Reset all selections
+  document.querySelectorAll('.ob-goal-card, .ob-exp-card').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.ob-chip').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.ob-day-opt').forEach(b => b.classList.remove('ob-day-active'));
+
+  if (obData.goal) {
+    const g = document.querySelector(`.ob-goal-card[data-value="${obData.goal}"]`);
+    if (g) g.classList.add('selected');
+  }
+  if (obData.experience) {
+    const e = document.querySelector(`.ob-exp-card[data-value="${obData.experience}"]`);
+    if (e) e.classList.add('selected');
+  }
+  const days = obData.trainingDays || 4;
+  document.getElementById('ob-days-val').textContent = days;
+  const dayBtn = document.querySelector(`.ob-day-opt[data-val="${days}"]`);
+  if (dayBtn) dayBtn.classList.add('ob-day-active');
+
+  (obData.equipment || []).forEach(eq => {
+    const chip = document.querySelector(`.ob-chip[data-value="${eq}"]`);
+    if (chip) chip.classList.add('selected');
+  });
+  if (obData.bodyWeight) document.getElementById('ob-bw-input').value = obData.bodyWeight;
+
+  obStep = 1;
+  goToObStep(1, true);
+  document.getElementById('onboarding-overlay').style.display = 'flex';
+}
+
+function clearAllData() {
+  const actions = document.querySelector('#tab-profile .danger-btn');
+  // Simple two-tap confirm via toast + flag
+  if (!clearAllData._confirm) {
+    clearAllData._confirm = true;
+    showToast('Tap again to confirm clear');
+    setTimeout(() => { clearAllData._confirm = false; }, 3000);
+    return;
+  }
+  clearAllData._confirm = false;
+  saveDB({workouts:[], bw:[]});
+  showToast('All data cleared');
+}
+
+// ============================================================
+// ONBOARDING
+// ============================================================
+let obStep = 1;
+const OB_TOTAL = 5;
+let obData = {goal:null, experience:null, trainingDays:4, equipment:[], bodyWeight:null};
+
+function goToObStep(newStep, instant) {
+  const allSteps = document.querySelectorAll('.ob-step');
+  if (instant) {
+    allSteps.forEach((s, i) => {
+      s.classList.remove('ob-active', 'ob-prev', 'ob-next');
+      const n = i + 1;
+      if (n === newStep) s.classList.add('ob-active');
+      else if (n < newStep) s.classList.add('ob-prev');
+      else s.classList.add('ob-next');
+    });
+    obStep = newStep;
+    updateObNav();
+    return;
+  }
+
+  const dir = newStep > obStep ? 1 : -1;
+  const currentEl = document.getElementById('ob-step-' + obStep);
+  const nextEl    = document.getElementById('ob-step-' + newStep);
+
+  // Stage next step off-screen
+  nextEl.classList.remove('ob-active', 'ob-prev', 'ob-next');
+  nextEl.classList.add(dir > 0 ? 'ob-next' : 'ob-prev');
+
+  // Force reflow then animate
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    currentEl.classList.remove('ob-active');
+    currentEl.classList.add(dir > 0 ? 'ob-prev' : 'ob-next');
+    nextEl.classList.remove('ob-prev', 'ob-next');
+    nextEl.classList.add('ob-active');
+  }));
+
+  obStep = newStep;
+  updateObNav();
+}
+
+function updateObNav() {
+  const backBtn = document.getElementById('ob-back-btn');
+  const nextBtn = document.getElementById('ob-next-btn');
+  backBtn.style.visibility = obStep === 1 ? 'hidden' : 'visible';
+  nextBtn.innerHTML = obStep === OB_TOTAL
+    ? 'Finish <i data-lucide="check" style="width:18px;height:18px;"></i>'
+    : 'Next <i data-lucide="arrow-right" style="width:18px;height:18px;"></i>';
+  document.getElementById('ob-step-counter').textContent = obStep + ' of ' + OB_TOTAL;
+  document.getElementById('ob-progress-fill').style.width = ((obStep / OB_TOTAL) * 100) + '%';
+  lucide.createIcons();
+}
+
+function obNext() {
+  if (!validateObStep()) return;
+  if (obStep === OB_TOTAL) { finishOnboarding(); return; }
+  goToObStep(obStep + 1);
+}
+
+function obBack() {
+  if (obStep > 1) goToObStep(obStep - 1);
+}
+
+function validateObStep() {
+  switch (obStep) {
+    case 1:
+      if (!obData.goal) { showToast('Please select a goal'); return false; }
+      break;
+    case 2:
+      if (!obData.experience) { showToast('Please select your experience level'); return false; }
+      break;
+    case 4:
+      if (!obData.equipment.length) { showToast('Select at least one equipment type'); return false; }
+      break;
+    case 5: {
+      const bwVal = parseFloat(document.getElementById('ob-bw-input').value);
+      if (!bwVal || bwVal < 30 || bwVal > 300) { showToast('Enter a valid weight (30–300 kg)'); return false; }
+      obData.bodyWeight = bwVal;
+      break;
+    }
+  }
+  return true;
+}
+
+function finishOnboarding() {
+  saveUserProfile(obData);
+  // Also log body weight entry
+  if (obData.bodyWeight) {
+    const db = getDB();
+    const date = new Date().toISOString().split('T')[0];
+    const i = db.bw.findIndex(e => e.date === date);
+    if (i >= 0) db.bw[i].weight = obData.bodyWeight; else db.bw.push({date, weight: obData.bodyWeight});
+    db.bw.sort((a,b) => a.date.localeCompare(b.date));
+    saveDB(db);
+  }
+  document.getElementById('onboarding-overlay').style.display = 'none';
+  showToast('Profile saved!');
+  renderProfile();
+}
+
+function selectGoal(el) {
+  document.querySelectorAll('.ob-goal-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  obData.goal = el.dataset.value;
+}
+
+function selectExperience(el) {
+  document.querySelectorAll('.ob-exp-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  obData.experience = el.dataset.value;
+}
+
+function selectObDays(el) {
+  document.querySelectorAll('.ob-day-opt').forEach(b => b.classList.remove('ob-day-active'));
+  el.classList.add('ob-day-active');
+  obData.trainingDays = parseInt(el.dataset.val);
+  document.getElementById('ob-days-val').textContent = el.dataset.val;
+}
+
+function toggleObEquip(el) {
+  const val = el.dataset.value;
+  if (obData.equipment.includes(val)) {
+    obData.equipment = obData.equipment.filter(e => e !== val);
+    el.classList.remove('selected');
+  } else {
+    obData.equipment.push(val);
+    el.classList.add('selected');
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function initApp() {
+  lucide.createIcons();
+  const profile = getUserProfile();
+  if (!profile) {
+    document.getElementById('onboarding-overlay').style.display = 'flex';
+    updateObNav();
+  } else {
+    document.getElementById('onboarding-overlay').style.display = 'none';
+  }
+}
+
+initApp();
