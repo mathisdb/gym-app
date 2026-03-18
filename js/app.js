@@ -33,15 +33,47 @@ const EXERCISES = {
     {id:'lunges',name:'Lunges',type:'Dumbbell'},
     {id:'hip_thrust',name:'Hip thrust',type:'Barbell'},
     {id:'goblet_squat',name:'Goblet squat',type:'Dumbbell'},
-  ]
+  ],
+  arms: [
+    {id:'barbell_curl',name:'Barbell curl',type:'Barbell'},
+    {id:'hammer_curl',name:'Hammer curl',type:'Dumbbell'},
+    {id:'cable_curl',name:'Cable curl',type:'Cable'},
+    {id:'concentration_curl',name:'Concentration curl',type:'Dumbbell'},
+    {id:'tricep_pushdown',name:'Tricep pushdown',type:'Cable'},
+    {id:'skull_crushers',name:'Skull crushers',type:'Barbell'},
+    {id:'overhead_ext',name:'Cable overhead extension',type:'Cable'},
+    {id:'dips',name:'Dips',type:'Bodyweight'},
+  ],
+  chest_back: [
+    {id:'bench',name:'Bench press',type:'Barbell'},
+    {id:'incline_db',name:'Incline dumbbell press',type:'Dumbbell'},
+    {id:'chest_fly',name:'Cable chest fly',type:'Cable'},
+    {id:'pec_deck',name:'Pec deck',type:'Machine'},
+    {id:'deadlift',name:'Deadlift',type:'Barbell'},
+    {id:'seated_row',name:'Seated cable row',type:'Cable'},
+    {id:'lat_pulldown',name:'Lat pulldown',type:'Cable'},
+    {id:'db_row',name:'Dumbbell row',type:'Dumbbell'},
+  ],
 };
-const ALL_EX = [...EXERCISES.push,...EXERCISES.pull,...EXERCISES.legs];
+
+// All unique exercises across all types (deduplicated by id)
+const ALL_EX = Object.values(EXERCISES).flat().filter((ex, idx, arr) =>
+  arr.findIndex(e => e.id === ex.id) === idx
+);
+
+const DAY_LABELS = {
+  push: 'Push',
+  pull: 'Pull',
+  legs: 'Legs',
+  arms: 'Arms',
+  chest_back: 'Chest / Back',
+};
 
 function getAccentColors() {
   const style = getComputedStyle(document.documentElement);
   return {
-    accent: style.getPropertyValue('--accent').trim() || '#3B9EE8',
-    accentLight: style.getPropertyValue('--accent-light').trim() || 'rgba(59,158,232,0.18)',
+    accent: style.getPropertyValue('--accent').trim() || '#E83B3B',
+    accentLight: style.getPropertyValue('--accent-light').trim() || 'rgba(232,59,59,0.18)',
   };
 }
 
@@ -63,13 +95,13 @@ function getAllExercises() {
   return [...ALL_EX, ...getCustomExercises().map(e=>({ ...e, custom: true }))];
 }
 function getExercisesForDay(day) {
-  const custom = getCustomExercises().filter(e=>day==='all' || e.day===day).map(e=>({ ...e, custom: true }));
-  if(day==='all') return [...ALL_EX, ...custom];
-  return [...EXERCISES[day], ...custom];
+  const custom = getCustomExercises().filter(e=>e.day===day).map(e=>({ ...e, custom: true }));
+  return [...(EXERCISES[day]||[]), ...custom];
 }
 
 function showAddExerciseForm() {
   document.getElementById('add-ex-form').style.display='block';
+  document.getElementById('new-ex-day').value = currentDay;
   document.getElementById('new-ex-name').focus();
 }
 function hideAddExerciseForm() {
@@ -116,10 +148,20 @@ function showTab(t) {
   if(t==='progress') { populateProgressSelect(); renderProgressChart(); }
 }
 
-function selectDay(el, day) {
-  document.querySelectorAll('.day-chip').forEach(c=>c.classList.remove('sel'));
-  el.classList.add('sel');
+function startWorkout(day) {
   currentDay = day;
+  document.getElementById('workout-choose').style.display = 'none';
+  document.getElementById('workout-logging').style.display = 'block';
+  document.getElementById('workout-day-label').textContent = DAY_LABELS[day] || day;
+  loadDayExercises();
+}
+
+function backToChoose() {
+  document.getElementById('workout-logging').style.display = 'none';
+  document.getElementById('workout-choose').style.display = 'block';
+  document.getElementById('exercises-list').innerHTML = '';
+  hideAddExerciseForm();
+  currentSets = {};
 }
 
 function loadDayExercises() {
@@ -144,7 +186,7 @@ function buildExBlock(ex, initialSets, lastDate) {
   const lastInfo = lastDate
     ? `Last: ${lastDate} · ${initialSets.length}×${initialSets[0]?.weight||'–'}kg`
     : 'No previous session';
-  const deleteBtn = ex.custom ? `<button class="del-ex-btn" onclick="deleteCustomExercise('${ex.id}');event.stopPropagation();">×</button>` : '';
+  const deleteBtn = ex.custom ? `<button class="del-ex-btn" onclick="deleteCustomExercise('${ex.id}');event.stopPropagation();"><i data-lucide="x" style="width:16px;height:16px;"></i></button>` : '';
   div.innerHTML = `
     <div class="ex-header" onclick="toggleEx('${ex.id}')">
       <div>
@@ -154,7 +196,7 @@ function buildExBlock(ex, initialSets, lastDate) {
       <div class="ex-meta">
         <span id="badge-${ex.id}">${initialSets.length} set${initialSets.length!==1?'s':''}</span>
         ${deleteBtn}
-        <span class="ex-arrow" id="arrow-${ex.id}">▼</span>
+        <i data-lucide="chevron-down" class="ex-arrow" id="arrow-${ex.id}" style="width:16px;height:16px;"></i>
       </div>
     </div>
     <div class="ex-body" id="body-${ex.id}">
@@ -163,9 +205,9 @@ function buildExBlock(ex, initialSets, lastDate) {
         <span>#</span><span>Reps</span><span>kg</span><span></span>
       </div>
       <div id="sets-${ex.id}"></div>
-      <button class="add-set-btn" onclick="addSet('${ex.id}')">+ Add set</button>
+      <button class="add-set-btn" onclick="addSet('${ex.id}')" style="display:flex;align-items:center;gap:4px;"><i data-lucide="plus" style="width:14px;height:14px;"></i> Add set</button>
     </div>`;
-  setTimeout(()=>{ initialSets.forEach((_,i)=>renderSetRow(ex.id,i)); },0);
+  setTimeout(()=>{ initialSets.forEach((_,i)=>renderSetRow(ex.id,i)); lucide.createIcons(); },0);
   return div;
 }
 
@@ -226,6 +268,7 @@ function saveWorkout() {
   db.workouts.push({date,day:currentDay,sets:setsToSave});
   saveDB(db);
   showToast('Workout saved!');
+  backToChoose();
 }
 
 // BODYWEIGHT
@@ -342,4 +385,4 @@ function renderProgressChart() {
   });
 }
 
-loadDayExercises();
+lucide.createIcons();

@@ -34,8 +34,9 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
 
 /* Tab bar */
 .tab-bar { display: flex; background: var(--card); border-bottom: 0.5px solid var(--border); position: sticky; top: 53px; z-index: 9; }
-.tab-btn { flex: 1; padding: 12px 4px 10px; border: none; background: none; font-size: 13px; color: var(--text-3); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; font-family: inherit; }
+.tab-btn { flex: 1; padding: 10px 4px 8px; border: none; background: none; font-size: 11px; color: var(--text-3); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-icon { width: 20px; height: 20px; }
 
 /* Main content */
 .main { flex: 1; overflow-y: auto; padding: 12px; padding-bottom: 32px; }
@@ -46,10 +47,23 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
 .card { background: var(--card); border-radius: var(--radius); border: 0.5px solid var(--border); padding: 14px 16px; margin-bottom: 10px; }
 .card-title { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
 
-/* Day type selector */
-.day-row { display: flex; gap: 8px; }
-.day-chip { flex: 1; padding: 10px 4px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; text-align: center; cursor: pointer; color: var(--text-2); background: var(--bg); transition: all 0.12s; }
-.day-chip.sel { background: var(--accent-light); color: var(--accent-text); border-color: var(--accent); }
+/* Choose workout screen */
+.choose-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin: 24px 0 16px; color: var(--text); }
+.workout-type-grid { display: flex; flex-direction: column; gap: 10px; }
+.workout-type-btn { width: 100%; padding: 16px 18px; background: var(--card); color: var(--text); border: 0.5px solid var(--border); border-radius: var(--radius); font-family: inherit; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: all 0.12s; }
+.workout-type-btn:active { transform: scale(0.98); background: var(--accent-light); border-color: var(--accent); }
+.wt-left { display: flex; align-items: center; gap: 14px; }
+.wt-icon { width: 22px; height: 22px; color: var(--accent); flex-shrink: 0; }
+.wt-name { display: block; font-size: 17px; font-weight: 700; }
+.wt-sub { display: block; font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.wt-arrow { width: 18px; height: 18px; color: var(--text-3); flex-shrink: 0; }
+
+/* Workout logging header */
+.workout-logging-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-top: 4px; }
+.back-btn { background: none; border: none; color: var(--accent); font-size: 15px; font-weight: 500; cursor: pointer; padding: 4px 0; font-family: inherit; display: flex; align-items: center; gap: 4px; }
+.back-icon { width: 18px; height: 18px; }
+.workout-day-title { font-size: 20px; font-weight: 700; }
+
 .load-btn { padding: 10px 20px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 
 /* Exercise blocks */
