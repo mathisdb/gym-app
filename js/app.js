@@ -1099,10 +1099,10 @@ function renderHistoryBody(idx, editMode) {
       exSets.forEach((s, si) => {
         html += `<div class="set-row">
           <span class="set-num">${si+1}</span>
-          <input type="number" inputmode="numeric" value="${s.reps||''}" placeholder="10"
-            onchange="updateHistorySet(${idx},'${exId}',${si},'reps',this.value)">
-          <input type="number" inputmode="decimal" step="0.5" value="${s.weight||''}" placeholder="kg"
-            onchange="updateHistorySet(${idx},'${exId}',${si},'weight',this.value)">
+          <input type="text" inputmode="decimal" value="${s.reps||''}" placeholder="10"
+            oninput="updateHistorySet(${idx},'${exId}',${si},'reps',this.value)">
+          <input type="text" inputmode="decimal" value="${s.weight||''}" placeholder="kg"
+            oninput="updateHistorySet(${idx},'${exId}',${si},'weight',this.value)">
           <button class="del-set" onclick="removeHistorySet(${idx},'${exId}',${si})">×</button>
         </div>`;
       });
@@ -1152,7 +1152,8 @@ function startHistoryEdit(idx) {
 function updateHistorySet(idx, exId, si, field, val) {
   if (!historyEditData || historyEditData.idx !== idx) return;
   if (!historyEditData.sets[exId][si]) historyEditData.sets[exId][si] = {};
-  historyEditData.sets[exId][si][field] = field === 'reps' ? parseInt(val)||0 : parseFloat(val)||'';
+  const normalized = String(val).replace(',', '.');
+  historyEditData.sets[exId][si][field] = field === 'reps' ? parseInt(normalized)||0 : parseFloat(normalized)||'';
 }
 
 function addHistorySet(idx, exId) {
@@ -1165,7 +1166,7 @@ function addHistorySet(idx, exId) {
 
 function removeHistorySet(idx, exId, si) {
   if (!historyEditData || historyEditData.idx !== idx) return;
-  if ((historyEditData.sets[exId]||[]).length <= 1) return;
+  if ((historyEditData.sets[exId]||[]).length <= 0) return;
   historyEditData.sets[exId].splice(si, 1);
   renderHistoryBody(idx, true);
 }
@@ -1173,7 +1174,10 @@ function removeHistorySet(idx, exId, si) {
 function saveHistoryEdit(idx) {
   if (!historyEditData || historyEditData.idx !== idx) return;
   const db = getDB();
-  db.workouts[idx].sets = historyEditData.sets;
+  // Drop exercises where all sets were removed
+  const cleaned = {};
+  Object.entries(historyEditData.sets).forEach(([id, sets]) => { if (sets.length > 0) cleaned[id] = sets; });
+  db.workouts[idx].sets = cleaned;
   saveDB(db);
   historyEditData = null;
   showToast('Workout updated!');
