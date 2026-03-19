@@ -1085,7 +1085,16 @@ function renderHistoryBody(idx, editMode) {
     g.forEach(id => { hcSsMap[id] = lbl; });
   });
 
-  let html = '<div class="hc-exercises">';
+  const dateVal = editMode && historyEditData ? historyEditData.date : workout.date;
+  let html = '';
+  if (editMode) {
+    html += `<div class="hc-date-edit-row">
+      <label class="hc-date-label">Date</label>
+      <input type="date" class="hc-date-input" value="${dateVal}"
+        oninput="historyEditData.date=this.value">
+    </div>`;
+  }
+  html += '<div class="hc-exercises">';
   Object.entries(srcSets).forEach(([exId, exSets]) => {
     const ex = allEx.find(e => e.id === exId);
     const exName = ex ? ex.name : exId;
@@ -1145,7 +1154,7 @@ function renderHistoryBody(idx, editMode) {
 
 function startHistoryEdit(idx) {
   const db = getDB();
-  historyEditData = { idx, sets: JSON.parse(JSON.stringify(db.workouts[idx].sets || {})) };
+  historyEditData = { idx, date: db.workouts[idx].date, sets: JSON.parse(JSON.stringify(db.workouts[idx].sets || {})) };
   renderHistoryBody(idx, true);
 }
 
@@ -1174,7 +1183,7 @@ function removeHistorySet(idx, exId, si) {
 function saveHistoryEdit(idx) {
   if (!historyEditData || historyEditData.idx !== idx) return;
   const db = getDB();
-  // Drop exercises where all sets were removed
+  if (historyEditData.date) db.workouts[idx].date = historyEditData.date;
   const cleaned = {};
   Object.entries(historyEditData.sets).forEach(([id, sets]) => { if (sets.length > 0) cleaned[id] = sets; });
   db.workouts[idx].sets = cleaned;

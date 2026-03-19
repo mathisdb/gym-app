@@ -1923,3 +1923,32 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
 .plan-suggest-item:last-child { border-bottom: none; }
 .plan-suggest-item:active { background: var(--accent-light); }
 .plan-suggest-type { font-size: 11px; color: var(--text-3); }
+
+/* History edit — date field */
+.hc-date-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 12px;
+  border-bottom: 0.5px solid var(--border);
+  margin-bottom: 10px;
+}
+.hc-date-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.hc-date-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+.hc-date-input:focus { outline: none; border-color: var(--accent); }
