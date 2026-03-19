@@ -424,52 +424,7 @@
 
   <!-- PROGRAM / PLAN -->
   <div class="section" id="tab-program">
-
-    <!-- No profile state -->
-    <div id="prog-no-profile" style="display:none">
-      <div class="prog-empty-state">
-        <div class="prog-empty-icon"><i data-lucide="calendar-days"></i></div>
-        <div class="prog-empty-title">No profile yet</div>
-        <div class="prog-empty-sub">Complete your profile so we can generate a personalised program based on your goal, experience, and equipment.</div>
-        <button class="save-btn" onclick="editProfile()" style="display:flex;align-items:center;justify-content:center;gap:8px;">
-          <i data-lucide="user" style="width:16px;height:16px;"></i> Set up Profile
-        </button>
-      </div>
-    </div>
-
-    <!-- Program content -->
-    <div id="prog-content" style="display:none">
-
-      <!-- Header card -->
-      <div class="card prog-header-card">
-        <div class="prog-header-top">
-          <div class="prog-header-info">
-            <div class="prog-split-name" id="prog-split-name">—</div>
-            <div class="prog-meta" id="prog-meta">—</div>
-            <div class="prog-date" id="prog-date">—</div>
-          </div>
-          <button class="prog-regen-btn" onclick="regenerateProgram()">
-            <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i>
-            <span>New</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Weekly volume card -->
-      <div class="card">
-        <div class="card-title">Weekly volume</div>
-        <div class="prog-vol-legend">
-          <span class="prog-vol-legend-item" style="color:#f59e0b">▪ Below target</span>
-          <span class="prog-vol-legend-item" style="color:var(--accent)">▪ On target</span>
-          <span class="prog-vol-legend-item" style="color:#22c55e">▪ Above target</span>
-        </div>
-        <div id="prog-volume-list"></div>
-      </div>
-
-      <!-- Day cards -->
-      <div id="prog-days-list"></div>
-
-    </div>
+    <div id="plan-container"></div>
   </div>
 
   <!-- ANALYTICS -->

@@ -1643,3 +1643,283 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
   background: var(--accent);
   margin-top: 6px;
 }
+
+/* ============================================================
+   CUSTOM PLAN EDITOR
+   ============================================================ */
+
+/* Top bar */
+.plan-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0 14px;
+}
+.plan-topbar-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.plan-edit-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, border-color 0.12s;
+}
+.plan-edit-toggle:active { background: var(--accent-light); border-color: var(--accent); }
+
+/* Empty state */
+.plan-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 64px 24px 40px;
+  gap: 10px;
+}
+.plan-empty-icon { color: var(--text-3); margin-bottom: 6px; }
+.plan-empty-title { font-size: 20px; font-weight: 700; }
+.plan-empty-sub { font-size: 14px; color: var(--text-2); line-height: 1.55; max-width: 280px; }
+.plan-create-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 13px 28px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.plan-create-btn:active { opacity: 0.8; }
+
+/* Day card — view mode */
+.plan-day-card {
+  background: var(--card);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.plan-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.plan-day-name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.plan-day-meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.plan-start-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  transition: opacity 0.12s;
+}
+.plan-start-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.plan-start-btn:not(:disabled):active { opacity: 0.75; }
+
+/* Exercise chips — view mode */
+.plan-ex-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.plan-ex-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: 20px;
+  font-size: 12px;
+}
+.plan-ex-chip-name { color: var(--text); font-weight: 500; }
+.plan-ex-chip-type { color: var(--text-3); font-size: 10px; }
+.plan-no-exercises { font-size: 12px; color: var(--text-3); font-style: italic; }
+
+/* Add day button */
+.plan-add-day-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 14px;
+  background: var(--card);
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  margin-top: 4px;
+  transition: border-color 0.12s, color 0.12s;
+}
+.plan-add-day-btn:active { border-color: var(--accent); color: var(--accent); }
+
+/* Day card — edit mode */
+.plan-day-card-edit { border: 1.5px solid var(--border); }
+.plan-edit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.plan-reorder-btns { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.plan-reorder-btn {
+  width: 26px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.12s;
+}
+.plan-reorder-btn:disabled { opacity: 0.25; cursor: default; }
+.plan-reorder-btn:not(:disabled):active { background: var(--accent-light); color: var(--accent); }
+.plan-dayname-input {
+  flex: 1; min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+}
+.plan-dayname-input:focus { outline: none; border-color: var(--accent); }
+.plan-del-day-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  background: none;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.plan-del-day-btn:active { background: var(--accent-light); }
+
+/* Exercise rows */
+.plan-edit-exlist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.plan-ex-row { display: flex; align-items: flex-start; gap: 8px; }
+.plan-ex-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.plan-ex-input-wrap { position: relative; }
+.plan-exname-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+.plan-exname-input:focus { outline: none; border-color: var(--accent); }
+
+/* Equipment chips */
+.plan-equip-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.plan-equip-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.plan-equip-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.plan-equip-chip:not(.active):active { background: var(--accent-light); border-color: var(--accent); }
+
+/* Delete exercise button */
+.plan-del-ex-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  margin-top: 6px;
+  background: none;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.plan-del-ex-btn:active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+
+/* Add exercise button */
+.plan-add-ex-btn {
+  display: flex; align-items: center; justify-content: center;
+  gap: 5px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.12s, color 0.12s;
+}
+.plan-add-ex-btn:active { border-color: var(--accent); color: var(--accent); }
+
+/* Autocomplete */
+.plan-suggest-box {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0; right: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  z-index: 50;
+  overflow: hidden;
+  display: none;
+}
+.plan-suggest-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  border-bottom: 0.5px solid var(--border);
+}
+.plan-suggest-item:last-child { border-bottom: none; }
+.plan-suggest-item:active { background: var(--accent-light); }
+.plan-suggest-type { font-size: 11px; color: var(--text-3); }

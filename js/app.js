@@ -143,6 +143,7 @@ let currentExercises = null; // null = use day lookup; set for program workouts
 let ssLinkMode = false;
 let ssLinkSelected = [];
 let ssRoundDone = {};        // gIdx → Set of exIds completed in current round
+let planEditMode = false;
 
 function showTab(t) {
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile','program','analytics'][i]===t));
@@ -152,7 +153,7 @@ function showTab(t) {
   if(t==='progress') { populateProgressSelect(); renderProgressChart(); }
   if(t==='history') renderHistory();
   if(t==='profile') renderProfile();
-  if(t==='program') renderProgram();
+  if(t==='program') renderPlanTab();
   if(t==='analytics') renderAnalytics();
 }
 
@@ -2506,6 +2507,291 @@ function _guideTouchEnd(e) {
   const sheet = document.getElementById('guide-sheet');
   const dy = _guideSwipeY !== null ? (e.changedTouches[0].clientY - _guideSwipeY) : 0;
   if (dy > 80) { closeGuide(); } else { sheet.style.transform = ''; _guideSwipeY = null; }
+}
+
+// ============================================================
+// CUSTOM PLAN EDITOR
+// ============================================================
+
+function getCustomPlan() {
+  try { return JSON.parse(localStorage.getItem('gymCustomPlan')) || {days:[]}; }
+  catch(e) { return {days:[]}; }
+}
+function saveCustomPlan(plan) { localStorage.setItem('gymCustomPlan', JSON.stringify(plan)); }
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderPlanTab() {
+  const plan = getCustomPlan();
+  const container = document.getElementById('plan-container');
+  if (!container) return;
+
+  if (plan.days.length === 0 && !planEditMode) {
+    container.innerHTML = `
+      <div class="plan-empty-state">
+        <div class="plan-empty-icon"><i data-lucide="calendar-days" style="width:44px;height:44px;"></i></div>
+        <div class="plan-empty-title">No plan yet</div>
+        <div class="plan-empty-sub">Build your own workout split — add days and fill them with your exercises your way.</div>
+        <button class="plan-create-btn" onclick="planToggleEdit()">
+          <i data-lucide="plus" style="width:15px;height:15px;"></i> Create my plan
+        </button>
+      </div>`;
+    lucide.createIcons();
+    return;
+  }
+
+  const daysHTML = plan.days.map((day, idx) =>
+    planEditMode
+      ? _planDayEditCard(day, idx, plan.days.length)
+      : _planDayViewCard(day)
+  ).join('');
+
+  container.innerHTML = `
+    <div class="plan-topbar">
+      <span class="plan-topbar-title">${planEditMode ? 'Edit Plan' : 'My Plan'}</span>
+      <button class="plan-edit-toggle" onclick="planToggleEdit()">
+        ${planEditMode
+          ? `<i data-lucide="check" style="width:14px;height:14px;"></i> Done`
+          : `<i data-lucide="pencil" style="width:14px;height:14px;"></i> Edit`}
+      </button>
+    </div>
+    ${daysHTML}
+    ${planEditMode ? `
+      <button class="plan-add-day-btn" onclick="planAddDay()">
+        <i data-lucide="plus" style="width:15px;height:15px;"></i> Add workout day
+      </button>` : ''}`;
+  lucide.createIcons();
+}
+
+function _planDayViewCard(day) {
+  const count = day.exercises.length;
+  const chipsHTML = count
+    ? day.exercises.map(e =>
+        `<div class="plan-ex-chip">
+          <span class="plan-ex-chip-name">${escapeHtml(e.name)}</span>
+          <span class="plan-ex-chip-type">${escapeHtml(e.type)}</span>
+        </div>`).join('')
+    : `<span class="plan-no-exercises">No exercises added yet</span>`;
+  return `
+    <div class="plan-day-card">
+      <div class="plan-day-header">
+        <div class="plan-day-info">
+          <div class="plan-day-name">${escapeHtml(day.name)}</div>
+          <div class="plan-day-meta">${count} exercise${count !== 1 ? 's' : ''}</div>
+        </div>
+        <button class="plan-start-btn" onclick="startPlanDayWorkout('${day.id}')" ${count === 0 ? 'disabled' : ''}>
+          <i data-lucide="play" style="width:12px;height:12px;"></i> Start
+        </button>
+      </div>
+      <div class="plan-ex-chips">${chipsHTML}</div>
+    </div>`;
+}
+
+function _planDayEditCard(day, idx, total) {
+  const exRowsHTML = day.exercises.map((e, i) => _planExRow(day.id, e, i)).join('');
+  return `
+    <div class="plan-day-card plan-day-card-edit">
+      <div class="plan-edit-header">
+        <div class="plan-reorder-btns">
+          <button class="plan-reorder-btn" onclick="planMoveDay('${day.id}',-1)" ${idx === 0 ? 'disabled' : ''}>
+            <i data-lucide="chevron-up" style="width:13px;height:13px;"></i>
+          </button>
+          <button class="plan-reorder-btn" onclick="planMoveDay('${day.id}',1)" ${idx === total-1 ? 'disabled' : ''}>
+            <i data-lucide="chevron-down" style="width:13px;height:13px;"></i>
+          </button>
+        </div>
+        <input class="plan-dayname-input" type="text" value="${escapeHtml(day.name)}"
+          placeholder="Day name" oninput="planSaveDayName('${day.id}',this.value)">
+        <button class="plan-del-day-btn" onclick="planDeleteDay('${day.id}')">
+          <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+        </button>
+      </div>
+      <div id="plan-exlist-${day.id}" class="plan-edit-exlist">${exRowsHTML}</div>
+      <button class="plan-add-ex-btn" onclick="planAddExercise('${day.id}')">
+        <i data-lucide="plus" style="width:13px;height:13px;"></i> Add exercise
+      </button>
+    </div>`;
+}
+
+function _planExRow(dayId, ex, eIdx) {
+  const chips = ['Barbell','Dumbbell','Cable','Machine','Bodyweight'].map(t =>
+    `<button class="plan-equip-chip${ex.type===t?' active':''}"
+      onclick="planSetExType('${dayId}',${eIdx},'${t}')">${t}</button>`
+  ).join('');
+  return `
+    <div class="plan-ex-row" id="plan-er-${dayId}-${eIdx}">
+      <div class="plan-ex-row-main">
+        <div class="plan-ex-input-wrap">
+          <input class="plan-exname-input" type="text" value="${escapeHtml(ex.name)}"
+            placeholder="Exercise name"
+            oninput="planSaveExName('${dayId}',${eIdx},this.value);planShowSuggestions('${dayId}',${eIdx},this)"
+            onfocus="planShowSuggestions('${dayId}',${eIdx},this)"
+            onblur="planHideSuggestions('${dayId}',${eIdx})">
+          <div class="plan-suggest-box" id="psb-${dayId}-${eIdx}"></div>
+        </div>
+        <div class="plan-equip-chips">${chips}</div>
+      </div>
+      <button class="plan-del-ex-btn" onclick="planDeleteExercise('${dayId}',${eIdx})">
+        <i data-lucide="x" style="width:14px;height:14px;"></i>
+      </button>
+    </div>`;
+}
+
+function planToggleEdit() {
+  planEditMode = !planEditMode;
+  renderPlanTab();
+}
+
+function planAddDay() {
+  const plan = getCustomPlan();
+  plan.days.push({ id: 'planday_' + Date.now(), name: 'Day ' + (plan.days.length + 1), exercises: [] });
+  saveCustomPlan(plan);
+  if (!planEditMode) planEditMode = true;
+  renderPlanTab();
+}
+
+function planDeleteDay(dayId) {
+  if (!confirm('Delete this day?')) return;
+  const plan = getCustomPlan();
+  plan.days = plan.days.filter(d => d.id !== dayId);
+  saveCustomPlan(plan);
+  renderPlanTab();
+}
+
+function planMoveDay(dayId, dir) {
+  const plan = getCustomPlan();
+  const idx = plan.days.findIndex(d => d.id === dayId);
+  if (idx < 0) return;
+  const swap = idx + dir;
+  if (swap < 0 || swap >= plan.days.length) return;
+  [plan.days[idx], plan.days[swap]] = [plan.days[swap], plan.days[idx]];
+  saveCustomPlan(plan);
+  renderPlanTab();
+}
+
+function planSaveDayName(dayId, value) {
+  const plan = getCustomPlan();
+  const day = plan.days.find(d => d.id === dayId);
+  if (day) { day.name = value; saveCustomPlan(plan); }
+}
+
+function planAddExercise(dayId) {
+  const plan = getCustomPlan();
+  const day = plan.days.find(d => d.id === dayId);
+  if (!day) return;
+  const newEx = { id: 'planex_' + Date.now(), name: '', type: 'Barbell' };
+  day.exercises.push(newEx);
+  saveCustomPlan(plan);
+
+  const container = document.getElementById('plan-exlist-' + dayId);
+  if (!container) return;
+  const eIdx = day.exercises.length - 1;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _planExRow(dayId, newEx, eIdx);
+  const row = tmp.firstElementChild;
+  container.appendChild(row);
+  lucide.createIcons();
+  row.querySelector('input').focus();
+}
+
+function planDeleteExercise(dayId, eIdx) {
+  const plan = getCustomPlan();
+  const day = plan.days.find(d => d.id === dayId);
+  if (!day) return;
+  day.exercises.splice(eIdx, 1);
+  saveCustomPlan(plan);
+  const container = document.getElementById('plan-exlist-' + dayId);
+  if (container) {
+    container.innerHTML = day.exercises.map((e, i) => _planExRow(dayId, e, i)).join('');
+    lucide.createIcons();
+  }
+}
+
+function planSaveExName(dayId, eIdx, value) {
+  const plan = getCustomPlan();
+  const day = plan.days.find(d => d.id === dayId);
+  if (day && day.exercises[eIdx]) { day.exercises[eIdx].name = value; saveCustomPlan(plan); }
+}
+
+function planSetExType(dayId, eIdx, type) {
+  const plan = getCustomPlan();
+  const day = plan.days.find(d => d.id === dayId);
+  if (!day || !day.exercises[eIdx]) return;
+  day.exercises[eIdx].type = type;
+  saveCustomPlan(plan);
+  const row = document.getElementById(`plan-er-${dayId}-${eIdx}`);
+  if (row) row.querySelectorAll('.plan-equip-chip').forEach(b => b.classList.toggle('active', b.textContent.trim() === type));
+}
+
+function planShowSuggestions(dayId, eIdx, input) {
+  const box = document.getElementById(`psb-${dayId}-${eIdx}`);
+  if (!box) return;
+  const query = input.value.trim().toLowerCase();
+  const seen = new Set();
+  const unique = [...ALL_EX, ...getCustomExercises()].filter(e => {
+    const k = e.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true;
+  });
+  const matches = query ? unique.filter(e => e.name.toLowerCase().includes(query)).slice(0, 6) : [];
+  if (!matches.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(e =>
+    `<div class="plan-suggest-item"
+      data-name="${escapeHtml(e.name)}" data-type="${escapeHtml(e.type)}" data-id="${escapeHtml(e.id)}"
+      data-dayid="${escapeHtml(dayId)}" data-eidx="${eIdx}"
+      onmousedown="planPickSuggestion(this)">
+      ${escapeHtml(e.name)}<span class="plan-suggest-type">${escapeHtml(e.type)}</span>
+    </div>`
+  ).join('');
+  box.style.display = 'block';
+}
+
+function planHideSuggestions(dayId, eIdx) {
+  setTimeout(() => {
+    const box = document.getElementById(`psb-${dayId}-${eIdx}`);
+    if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+  }, 150);
+}
+
+function planPickSuggestion(el) {
+  const { dayid: dayId, eidx, name, type, id } = el.dataset;
+  const eIdx = parseInt(eidx);
+  const plan = getCustomPlan();
+  const day = plan.days.find(d => d.id === dayId);
+  if (!day || !day.exercises[eIdx]) return;
+  day.exercises[eIdx].name = name;
+  day.exercises[eIdx].type = type;
+  day.exercises[eIdx].id = id; // reuse original ID → inherits progression history
+  saveCustomPlan(plan);
+  const row = document.getElementById(`plan-er-${dayId}-${eIdx}`);
+  if (row) {
+    const inp = row.querySelector('.plan-exname-input');
+    if (inp) inp.value = name;
+    row.querySelectorAll('.plan-equip-chip').forEach(b => b.classList.toggle('active', b.textContent.trim() === type));
+    const box = document.getElementById(`psb-${dayId}-${eIdx}`);
+    if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+  }
+}
+
+function startPlanDayWorkout(dayId) {
+  const plan = getCustomPlan();
+  const day = plan.days.find(d => d.id === dayId);
+  if (!day) return;
+  const exercises = day.exercises.filter(e => e.name.trim());
+  if (!exercises.length) { showToast('Add exercises to this day first'); return; }
+
+  currentDay = day.id;
+  currentSupersets = [];
+  ssRoundDone = {};
+  currentExercises = exercises.map(e => ({...e}));
+  currentSets = {};
+  exercises.forEach(ex => { currentSets[ex.id] = []; });
+
+  showTab('workout');
+  document.getElementById('workout-choose').style.display = 'none';
+  document.getElementById('workout-logging').style.display = 'block';
+  document.getElementById('workout-day-label').textContent = day.name;
+  reRenderExerciseList();
 }
 
 // ============================================================
