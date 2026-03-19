@@ -928,9 +928,14 @@ function openDayDetail(dateStr) {
     });
 
     html += `</div>
-      <button class="save-btn dd-redo-btn" onclick="redoWorkout(${i});closeDayDetail();">
-        <i data-lucide="repeat" style="width:16px;height:16px;"></i> Repeat this workout
-      </button>`;
+      <div class="dd-actions">
+        <button class="save-btn dd-redo-btn" onclick="redoWorkout(${i});closeDayDetail();">
+          <i data-lucide="repeat" style="width:16px;height:16px;"></i> Repeat
+        </button>
+        <button class="dd-delete-btn" onclick="deleteWorkoutFromDetail(${i},'${dateStr}')">
+          <i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete
+        </button>
+      </div>`;
   });
 
   document.getElementById('day-detail-content').innerHTML = html;
@@ -956,6 +961,16 @@ function closeDayDetail() {
   sheet.removeEventListener('touchmove',  _ddTouchMove);
   sheet.removeEventListener('touchend',   _ddTouchEnd);
   _ddSwipeY = null;
+}
+
+function deleteWorkoutFromDetail(idx, dateStr) {
+  if (!confirm('Delete this workout? This cannot be undone.')) return;
+  const db = getDB();
+  db.workouts.splice(idx, 1);
+  saveDB(db);
+  showToast('Workout deleted');
+  closeDayDetail();
+  renderHistory();
 }
 
 function _ddTouchStart(e) { _ddSwipeY = e.touches[0].clientY; }
