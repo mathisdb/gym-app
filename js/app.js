@@ -343,9 +343,7 @@ function loadDayExercises() {
   const exs = getExercisesForDay(currentDay);
   const db = getDB();
   exs.forEach(ex => {
-    const lastW = db.workouts.slice().reverse().find(w => w.sets && w.sets[ex.id]);
-    const lastSets = lastW ? JSON.parse(JSON.stringify(lastW.sets[ex.id])) : null;
-    currentSets[ex.id] = JSON.parse(JSON.stringify(buildSuggestedSets(ex, lastSets)));
+    currentSets[ex.id] = [];
   });
   reRenderExerciseList();
 }
@@ -380,7 +378,7 @@ function buildStandaloneExBlock(ex, db) {
   const lastW = db.workouts.slice().reverse().find(w => w.sets && w.sets[ex.id]);
   const lastSets = lastW ? JSON.parse(JSON.stringify(lastW.sets[ex.id])) : null;
   const lastDate = lastW ? lastW.date : null;
-  if (!currentSets[ex.id]) currentSets[ex.id] = JSON.parse(JSON.stringify(buildSuggestedSets(ex, lastSets)));
+  if (!currentSets[ex.id]) currentSets[ex.id] = [];
   return buildExBlock(ex, currentSets[ex.id], lastDate, lastSets);
 }
 
@@ -479,9 +477,20 @@ function updateSet(exId,idx,field,val) {
 
 function addSet(exId) {
   if(!currentSets[exId]) currentSets[exId]=[];
-  const last = currentSets[exId][currentSets[exId].length-1]||{reps:10,weight:''};
-  currentSets[exId].push({...last});
-  renderSetRow(exId, currentSets[exId].length-1);
+  const newIdx = currentSets[exId].length;
+  // Pre-fill from the corresponding set in the last workout, fall back to last added set
+  const db = getDB();
+  const lastW = db.workouts.slice().reverse().find(w => w.sets && w.sets[exId]);
+  const lastSets = lastW ? lastW.sets[exId] : null;
+  let prefill;
+  if (lastSets && lastSets[newIdx]) {
+    prefill = {reps: lastSets[newIdx].reps, weight: lastSets[newIdx].weight};
+  } else {
+    const prev = currentSets[exId][newIdx-1];
+    prefill = prev ? {...prev} : {reps:10, weight:''};
+  }
+  currentSets[exId].push(prefill);
+  renderSetRow(exId, newIdx);
   updateBadge(exId);
 }
 
