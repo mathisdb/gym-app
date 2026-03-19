@@ -495,7 +495,7 @@ function addSet(exId) {
 }
 
 function removeSet(exId,idx) {
-  if(!currentSets[exId]||currentSets[exId].length<=1) return;
+  if(!currentSets[exId]||currentSets[exId].length<=0) return;
   currentSets[exId].splice(idx,1);
   document.getElementById('sets-'+exId).innerHTML='';
   currentSets[exId].forEach((_,i)=>renderSetRow(exId,i));
