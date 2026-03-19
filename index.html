@@ -185,62 +185,8 @@
   <!-- WORKOUT -->
   <div class="section active" id="tab-workout">
 
-    <!-- Choose workout screen -->
-    <div id="workout-choose">
-      <div class="choose-title">Choose Workout</div>
-      <div class="workout-type-grid">
-        <button class="workout-type-btn" onclick="startWorkout('push')">
-          <div class="wt-left">
-            <i data-lucide="zap" class="wt-icon"></i>
-            <div>
-              <span class="wt-name">Push</span>
-              <span class="wt-sub">Chest · Shoulders · Triceps</span>
-            </div>
-          </div>
-          <i data-lucide="chevron-right" class="wt-arrow"></i>
-        </button>
-        <button class="workout-type-btn" onclick="startWorkout('pull')">
-          <div class="wt-left">
-            <i data-lucide="move" class="wt-icon"></i>
-            <div>
-              <span class="wt-name">Pull</span>
-              <span class="wt-sub">Back · Biceps</span>
-            </div>
-          </div>
-          <i data-lucide="chevron-right" class="wt-arrow"></i>
-        </button>
-        <button class="workout-type-btn" onclick="startWorkout('legs')">
-          <div class="wt-left">
-            <i data-lucide="flame" class="wt-icon"></i>
-            <div>
-              <span class="wt-name">Legs</span>
-              <span class="wt-sub">Quads · Hamstrings · Glutes</span>
-            </div>
-          </div>
-          <i data-lucide="chevron-right" class="wt-arrow"></i>
-        </button>
-        <button class="workout-type-btn" onclick="startWorkout('arms')">
-          <div class="wt-left">
-            <i data-lucide="dumbbell" class="wt-icon"></i>
-            <div>
-              <span class="wt-name">Arms</span>
-              <span class="wt-sub">Biceps · Triceps</span>
-            </div>
-          </div>
-          <i data-lucide="chevron-right" class="wt-arrow"></i>
-        </button>
-        <button class="workout-type-btn" onclick="startWorkout('chest_back')">
-          <div class="wt-left">
-            <i data-lucide="layers" class="wt-icon"></i>
-            <div>
-              <span class="wt-name">Chest / Back</span>
-              <span class="wt-sub">Full Upper Body</span>
-            </div>
-          </div>
-          <i data-lucide="chevron-right" class="wt-arrow"></i>
-        </button>
-      </div>
-    </div>
+    <!-- Choose workout screen — rendered dynamically by renderWorkoutChoose() -->
+    <div id="workout-choose"></div>
 
     <!-- Exercise logging screen -->
     <div id="workout-logging" style="display:none">

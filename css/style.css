@@ -1977,3 +1977,20 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
   transition: background 0.12s;
 }
 .dd-delete-btn:active { background: var(--accent-light); }
+
+/* Workout choose — plan hint */
+.choose-plan-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.choose-plan-hint a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+}

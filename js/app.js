@@ -145,10 +145,72 @@ let ssLinkSelected = [];
 let ssRoundDone = {};        // gIdx → Set of exIds completed in current round
 let planEditMode = false;
 
+function renderWorkoutChoose() {
+  const container = document.getElementById('workout-choose');
+  if (!container) return;
+  const plan = getCustomPlan();
+  const days = plan.days.filter(d => d.exercises.some(e => e.name.trim()));
+
+  if (days.length > 0) {
+    const btns = days.map(day => {
+      const exs = day.exercises.filter(e => e.name.trim());
+      const preview = exs.slice(0, 3).map(e => e.name).join(' · ') + (exs.length > 3 ? ` · +${exs.length - 3}` : '');
+      return `
+        <button class="workout-type-btn" onclick="startPlanDayWorkout('${day.id}')">
+          <div class="wt-left">
+            <i data-lucide="dumbbell" class="wt-icon"></i>
+            <div>
+              <span class="wt-name">${escapeHtml(day.name)}</span>
+              <span class="wt-sub">${escapeHtml(preview)}</span>
+            </div>
+          </div>
+          <i data-lucide="chevron-right" class="wt-arrow"></i>
+        </button>`;
+    }).join('');
+    container.innerHTML = `<div class="choose-title">My Plan</div><div class="workout-type-grid">${btns}</div>`;
+  } else {
+    container.innerHTML = `
+      <div class="choose-title">Choose Workout</div>
+      <div class="workout-type-grid">
+        <button class="workout-type-btn" onclick="startWorkout('push')">
+          <div class="wt-left"><i data-lucide="zap" class="wt-icon"></i>
+            <div><span class="wt-name">Push</span><span class="wt-sub">Chest · Shoulders · Triceps</span></div>
+          </div><i data-lucide="chevron-right" class="wt-arrow"></i>
+        </button>
+        <button class="workout-type-btn" onclick="startWorkout('pull')">
+          <div class="wt-left"><i data-lucide="move" class="wt-icon"></i>
+            <div><span class="wt-name">Pull</span><span class="wt-sub">Back · Biceps</span></div>
+          </div><i data-lucide="chevron-right" class="wt-arrow"></i>
+        </button>
+        <button class="workout-type-btn" onclick="startWorkout('legs')">
+          <div class="wt-left"><i data-lucide="flame" class="wt-icon"></i>
+            <div><span class="wt-name">Legs</span><span class="wt-sub">Quads · Hamstrings · Glutes</span></div>
+          </div><i data-lucide="chevron-right" class="wt-arrow"></i>
+        </button>
+        <button class="workout-type-btn" onclick="startWorkout('arms')">
+          <div class="wt-left"><i data-lucide="dumbbell" class="wt-icon"></i>
+            <div><span class="wt-name">Arms</span><span class="wt-sub">Biceps · Triceps</span></div>
+          </div><i data-lucide="chevron-right" class="wt-arrow"></i>
+        </button>
+        <button class="workout-type-btn" onclick="startWorkout('chest_back')">
+          <div class="wt-left"><i data-lucide="layers" class="wt-icon"></i>
+            <div><span class="wt-name">Chest / Back</span><span class="wt-sub">Full Upper Body</span></div>
+          </div><i data-lucide="chevron-right" class="wt-arrow"></i>
+        </button>
+      </div>
+      <div class="choose-plan-hint">
+        <i data-lucide="calendar-days" style="width:13px;height:13px;"></i>
+        <span>Build your split in the <a onclick="showTab('program')" href="#">Plan tab</a></span>
+      </div>`;
+  }
+  lucide.createIcons();
+}
+
 function showTab(t) {
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile','program','analytics'][i]===t));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
+  if(t==='workout') renderWorkoutChoose();
   if(t==='bodyweight') renderBW();
   if(t==='progress') { populateProgressSelect(); renderProgressChart(); }
   if(t==='history') renderHistory();
@@ -176,6 +238,7 @@ function backToChoose() {
   document.getElementById('exercises-list').innerHTML = '';
   hideAddExerciseForm();
   currentSets = {};
+  renderWorkoutChoose();
 }
 
 // ============================================================
@@ -2828,6 +2891,7 @@ function startPlanDayWorkout(dayId) {
 // ============================================================
 function initApp() {
   lucide.createIcons();
+  renderWorkoutChoose();
   const profile = getUserProfile();
   if (!profile) {
     document.getElementById('onboarding-overlay').style.display = 'flex';
