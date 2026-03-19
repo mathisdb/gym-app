@@ -464,8 +464,8 @@ function renderSetRow(exId, idx) {
   const s = (currentSets[exId]||[])[idx]||{reps:10,weight:''};
   row.innerHTML = `
     <span class="set-num">${idx+1}</span>
-    <input type="number" inputmode="numeric" min="1" max="100" value="${s.reps||''}" placeholder="10" oninput="updateSet('${exId}',${idx},'reps',this.value)">
-    <input type="number" inputmode="decimal" min="0" max="500" step="0.5" value="${s.weight||''}" placeholder="kg" oninput="updateSet('${exId}',${idx},'weight',this.value)">
+    <input type="text" inputmode="decimal" value="${s.reps||''}" placeholder="10" oninput="updateSet('${exId}',${idx},'reps',this.value)">
+    <input type="text" inputmode="decimal" value="${s.weight||''}" placeholder="kg" oninput="updateSet('${exId}',${idx},'weight',this.value)">
     <button class="done-set" onclick="logSetDone('${exId}',${idx})" title="Set done — start rest timer">✓</button>
     <button class="del-set" onclick="removeSet('${exId}',${idx})">×</button>`;
 }
@@ -473,7 +473,8 @@ function renderSetRow(exId, idx) {
 function updateSet(exId,idx,field,val) {
   if(!currentSets[exId]) currentSets[exId]=[];
   if(!currentSets[exId][idx]) currentSets[exId][idx]={};
-  currentSets[exId][idx][field] = field==='reps'?parseInt(val)||0:parseFloat(val)||'';
+  const normalized = String(val).replace(',', '.');
+  currentSets[exId][idx][field] = field==='reps' ? parseInt(normalized)||0 : parseFloat(normalized)||'';
 }
 
 function addSet(exId) {
