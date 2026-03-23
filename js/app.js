@@ -207,16 +207,14 @@ function renderWorkoutChoose() {
 }
 
 function showTab(t) {
-  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile','program','analytics','cardio'][i]===t));
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','me','cardio'][i]===t));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(t==='workout') renderWorkoutChoose();
   if(t==='bodyweight') renderBW();
-  if(t==='progress') { populateProgressSelect(); renderProgressChart(); }
+  if(t==='progress') { populateProgressSelect(); renderProgressChart(); renderAnalytics(); }
   if(t==='history') renderHistory();
-  if(t==='profile') renderProfile();
-  if(t==='program') renderPlanTab();
-  if(t==='analytics') renderAnalytics();
+  if(t==='me') { renderProfile(); renderPlanTab(); }
   if(t==='cardio') renderCardio();
 }
 
@@ -226,9 +224,11 @@ function startWorkout(day) {
   document.getElementById('workout-logging').style.display = 'block';
   document.getElementById('workout-day-label').textContent = DAY_LABELS[day] || day;
   loadDayExercises();
+  startWorkoutTimer();
 }
 
 function backToChoose() {
+  stopWorkoutTimer();
   stopRestTimer(true);
   cancelLinkMode();
   currentSupersets = [];
@@ -240,6 +240,37 @@ function backToChoose() {
   hideAddExerciseForm();
   currentSets = {};
   renderWorkoutChoose();
+}
+
+// ── Session timer ──────────────────────────────────────────────
+let _workoutStartTime = null;
+let _workoutTimerInterval = null;
+
+function startWorkoutTimer() {
+  _workoutStartTime = Date.now();
+  _workoutTimerInterval = setInterval(_tickWorkoutTimer, 30000); // update every 30s
+  _tickWorkoutTimer();
+  const row = document.getElementById('workout-timer-row');
+  if (row) row.style.display = 'block';
+}
+
+function stopWorkoutTimer() {
+  if (_workoutTimerInterval) { clearInterval(_workoutTimerInterval); _workoutTimerInterval = null; }
+  _workoutStartTime = null;
+  const row = document.getElementById('workout-timer-row');
+  if (row) row.style.display = 'none';
+}
+
+function _tickWorkoutTimer() {
+  if (!_workoutStartTime) return;
+  const mins = Math.floor((Date.now() - _workoutStartTime) / 60000);
+  const el = document.getElementById('workout-elapsed');
+  if (el) el.textContent = mins + ' min';
+}
+
+function getWorkoutDurationMins() {
+  if (!_workoutStartTime) return 0;
+  return Math.max(1, Math.round((Date.now() - _workoutStartTime) / 60000));
 }
 
 // ============================================================
@@ -590,7 +621,9 @@ function saveWorkout() {
   const date=new Date().toISOString().split('T')[0];
   const setsToSave={};
   filled.forEach(([id,sets])=>{ setsToSave[id]=sets; });
-  db.workouts.push({date, day:currentDay, sets:setsToSave,
+  const duration=getWorkoutDurationMins();
+  stopWorkoutTimer();
+  db.workouts.push({date, day:currentDay, sets:setsToSave, duration,
     supersets: currentSupersets.length ? JSON.parse(JSON.stringify(currentSupersets)) : undefined});
   saveDB(db);
   updateProgressionAfterWorkout(setsToSave);
@@ -693,6 +726,11 @@ function renderBW() {
   const hist=document.getElementById('bw-history');
   const bwEmpty=document.getElementById('bw-empty');
   const summaryCard=document.getElementById('bw-summary-card');
+  // Pre-fill with last logged weight so user can tap Log immediately
+  const bwInput=document.getElementById('bw-input');
+  if(bwInput && !bwInput.value && entries.length) {
+    bwInput.value=entries[entries.length-1].weight;
+  }
   if(!entries.length){
     hist.innerHTML='<div class="empty">No entries yet</div>';
     bwEmpty.style.display='block';
@@ -976,6 +1014,7 @@ function openDayDetail(dateStr) {
         <span class="dd-chip">${exIds.length} exercises</span>
         <span class="dd-chip">${nSets} sets</span>
         <span class="dd-chip">${Math.round(vol)} kg vol</span>
+        ${w.duration ? `<span class="dd-chip">${w.duration} min</span>` : ''}
       </div>
       <div class="dd-ex-list">`;
 
@@ -1115,6 +1154,7 @@ function buildHistoryCard(workout, idx) {
     dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
   }
 
+  const durationStr = workout.duration ? ` · ${workout.duration} min` : '';
   div.innerHTML = `
     <div class="hc-header" onclick="toggleHistoryCard(${idx})">
       <div class="hc-left">
@@ -1125,7 +1165,7 @@ function buildHistoryCard(workout, idx) {
         <div class="hc-ex-preview">${exPreview || 'No exercises'}</div>
       </div>
       <div class="hc-right">
-        <div class="hc-meta">${exCount} ex · ${totalSets} sets</div>
+        <div class="hc-meta">${exCount} ex · ${totalSets} sets${durationStr}</div>
         <div class="hc-vol">${Math.round(totalVol)} kg vol</div>
         <i data-lucide="chevron-down" class="ex-arrow" id="hc-arrow-${idx}" style="width:16px;height:16px;"></i>
       </div>
@@ -1315,6 +1355,7 @@ function redoWorkout(idx) {
     list.appendChild(buildExBlock(ex, w.sets[exId], w.date));
   });
 
+  startWorkoutTimer();
   showToast('Workout loaded — edit & save!');
 }
 
@@ -1392,7 +1433,7 @@ function editProfile() {
 }
 
 function clearAllData() {
-  const actions = document.querySelector('#tab-profile .danger-btn');
+  const actions = document.querySelector('#tab-me .danger-btn');
   // Simple two-tap confirm via toast + flag
   if (!clearAllData._confirm) {
     clearAllData._confirm = true;
@@ -1944,6 +1985,7 @@ function startProgramWorkout(dayIdx) {
   document.getElementById('workout-logging').style.display = 'block';
   document.getElementById('workout-day-label').textContent = day.label;
   reRenderExerciseList();
+  startWorkoutTimer();
   showToast(`${day.label} loaded — let's go!`);
 }
 
@@ -2885,6 +2927,7 @@ function startPlanDayWorkout(dayId) {
   document.getElementById('workout-logging').style.display = 'block';
   document.getElementById('workout-day-label').textContent = day.name;
   reRenderExerciseList();
+  startWorkoutTimer();
 }
 
 // ============================================================

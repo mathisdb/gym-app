@@ -166,17 +166,9 @@
     <i data-lucide="history" class="tab-icon"></i>
     <span>History</span>
   </button>
-  <button class="tab-btn" onclick="showTab('profile')">
+  <button class="tab-btn" onclick="showTab('me')">
     <i data-lucide="user" class="tab-icon"></i>
-    <span>Profile</span>
-  </button>
-  <button class="tab-btn" onclick="showTab('program')">
-    <i data-lucide="calendar-days" class="tab-icon"></i>
-    <span>Plan</span>
-  </button>
-  <button class="tab-btn" onclick="showTab('analytics')">
-    <i data-lucide="bar-chart-2" class="tab-icon"></i>
-    <span>Stats</span>
+    <span>Me</span>
   </button>
   <button class="tab-btn" onclick="showTab('cardio')">
     <i data-lucide="activity" class="tab-icon"></i>
@@ -236,6 +228,9 @@
         </div>
       </div>
       <div id="exercises-list"></div>
+      <div id="workout-timer-row" style="display:none;text-align:center;margin-bottom:8px;">
+        <span id="workout-elapsed" class="workout-timer-badge">0 min</span>
+      </div>
       <button class="save-btn" onclick="saveWorkout()" style="display:flex;align-items:center;justify-content:center;gap:8px;"><i data-lucide="check" style="width:18px;height:18px;"></i> Save workout</button>
     </div>
 
@@ -266,7 +261,7 @@
     </div>
   </div>
 
-  <!-- PROGRESS -->
+  <!-- PROGRESS + STATS -->
   <div class="section" id="tab-progress">
     <div class="card">
       <div class="card-title">Exercise</div>
@@ -283,6 +278,47 @@
     <div class="card">
       <div class="card-title">Recent sessions</div>
       <div id="progress-history"><div class="empty">No data yet</div></div>
+    </div>
+
+    <!-- ── Stats (merged) ─────────────────────────────────────── -->
+    <div class="merged-section-title">Stats</div>
+
+    <div id="an-week-cards" class="an-week-cards"></div>
+
+    <div class="card">
+      <div class="card-title">Weekly muscle volume <span class="card-subtitle">· last 7 days</span></div>
+      <div class="an-vol-legend">
+        <span class="an-vol-dot" style="background:#f59e0b"></span><span>Below target</span>
+        <span class="an-vol-dot" style="background:#22c55e"></span><span>On target</span>
+        <span class="an-vol-dot" style="background:var(--accent)"></span><span>Above target</span>
+      </div>
+      <div style="position:relative;height:280px;margin-top:6px">
+        <canvas id="an-volume-chart"></canvas>
+      </div>
+      <div id="an-volume-empty" class="empty" style="display:none">Log workouts to see muscle volume</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Estimated 1-rep max</div>
+      <div class="an-e1rm-subtitle">Epley formula · weight × (1 + reps ÷ 30)</div>
+      <select class="ex-select" id="an-e1rm-select" onchange="renderE1rmChart()" style="margin-top:10px;"></select>
+      <div style="position:relative;height:180px;margin-top:12px">
+        <canvas id="an-e1rm-chart"></canvas>
+      </div>
+      <div id="an-e1rm-empty" class="empty" style="display:none">No sessions logged for this exercise</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Training calendar <span class="card-subtitle">· last 12 weeks</span></div>
+      <div id="an-heatmap" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Body weight trend</div>
+      <div style="position:relative;height:180px;margin-top:4px">
+        <canvas id="an-bw-chart"></canvas>
+      </div>
+      <div id="an-bw-empty" class="empty" style="display:none">Log body weight to see trend</div>
     </div>
   </div>
 
@@ -338,9 +374,11 @@
 
   </div>
 
-  <!-- PROFILE -->
-  <div class="section" id="tab-profile">
-    <div class="choose-title" style="font-size:22px;margin:16px 0 12px;">Your Profile</div>
+  <!-- ME (Profile + Plan) -->
+  <div class="section" id="tab-me">
+
+    <!-- ── Profile ───────────────────────────────────────────── -->
+    <div class="merged-section-title">Profile</div>
     <div class="card">
       <div class="card-title">Goals &amp; Level</div>
       <div id="profile-content"><div class="empty">No profile set up yet.</div></div>
@@ -370,64 +408,16 @@
         <i data-lucide="trash-2" style="width:15px;height:15px;"></i> Clear all workout data
       </button>
     </div>
-  </div>
 
-  <!-- PROGRAM / PLAN -->
-  <div class="section" id="tab-program">
+    <!-- ── Plan ──────────────────────────────────────────────── -->
+    <div class="merged-section-title" style="margin-top:8px;">My Plan</div>
     <div id="plan-container"></div>
+
   </div>
 
   <!-- CARDIO -->
   <div class="section" id="tab-cardio">
     <div id="cardio-content"></div>
-  </div>
-
-  <!-- ANALYTICS -->
-  <div class="section" id="tab-analytics">
-
-    <!-- Weekly summary cards -->
-    <div id="an-week-cards" class="an-week-cards"></div>
-
-    <!-- Volume per muscle group -->
-    <div class="card">
-      <div class="card-title">Weekly muscle volume <span class="card-subtitle">· last 7 days</span></div>
-      <div class="an-vol-legend">
-        <span class="an-vol-dot" style="background:#f59e0b"></span><span>Below target</span>
-        <span class="an-vol-dot" style="background:#22c55e"></span><span>On target</span>
-        <span class="an-vol-dot" style="background:var(--accent)"></span><span>Above target</span>
-      </div>
-      <div style="position:relative;height:280px;margin-top:6px">
-        <canvas id="an-volume-chart"></canvas>
-      </div>
-      <div id="an-volume-empty" class="empty" style="display:none">Log workouts to see muscle volume</div>
-    </div>
-
-    <!-- Estimated 1RM -->
-    <div class="card">
-      <div class="card-title">Estimated 1-rep max</div>
-      <div class="an-e1rm-subtitle">Epley formula · weight × (1 + reps ÷ 30)</div>
-      <select class="ex-select" id="an-e1rm-select" onchange="renderE1rmChart()" style="margin-top:10px;"></select>
-      <div style="position:relative;height:180px;margin-top:12px">
-        <canvas id="an-e1rm-chart"></canvas>
-      </div>
-      <div id="an-e1rm-empty" class="empty" style="display:none">No sessions logged for this exercise</div>
-    </div>
-
-    <!-- Training heatmap -->
-    <div class="card">
-      <div class="card-title">Training calendar <span class="card-subtitle">· last 12 weeks</span></div>
-      <div id="an-heatmap" style="margin-top:10px"></div>
-    </div>
-
-    <!-- Body weight trend + 7-day MA -->
-    <div class="card">
-      <div class="card-title">Body weight trend</div>
-      <div style="position:relative;height:180px;margin-top:4px">
-        <canvas id="an-bw-chart"></canvas>
-      </div>
-      <div id="an-bw-empty" class="empty" style="display:none">Log body weight to see trend</div>
-    </div>
-
   </div>
 
 </div>

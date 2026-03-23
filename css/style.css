@@ -434,6 +434,7 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
 }
 .cal-cell {
   aspect-ratio: 1;
+  min-height: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2108,4 +2109,27 @@ body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; 
   border-color: var(--accent);
   color: var(--accent-text);
   font-weight: 600;
+}
+
+/* Merged-tab section dividers */
+.merged-section-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text);
+  padding: 16px 2px 10px;
+}
+
+/* Workout session timer badge */
+.workout-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 12px;
 }
