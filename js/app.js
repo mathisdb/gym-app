@@ -890,11 +890,19 @@ function renderCalendar() {
   }
 
   const db = getDB();
+  const cardioLog = getCardioLog();
 
-  // Build date → [{workout, idx}] map
+  // Build workout map: date → entries[]
   const wMap = {};
   db.workouts.forEach((w, i) => {
     (wMap[w.date] = wMap[w.date] || []).push({w, i});
+  });
+
+  // Build cardio map: date → entries[]
+  const cMap = {};
+  cardioLog.forEach(s => {
+    const date = s.ts.split('T')[0];
+    (cMap[date] = cMap[date] || []).push(s);
   });
 
   const todayStr   = new Date().toISOString().split('T')[0];
@@ -910,23 +918,27 @@ function renderCalendar() {
   for (let b = 0; b < firstDow; b++) cells += `<div class="cal-cell"></div>`;
 
   for (let d = 1; d <= daysInMon; d++) {
-    const ds         = `${monthPfx}-${String(d).padStart(2,'0')}`;
-    const entries    = wMap[ds];
-    const hasW       = !!entries;
-    const isToday    = ds === todayStr;
-    const isFuture   = ds > todayStr;
-    const dotCount   = hasW ? Math.min(entries.length, 3) : 0;
+    const ds       = `${monthPfx}-${String(d).padStart(2,'0')}`;
+    const wEntries = wMap[ds];
+    const cEntries = cMap[ds];
+    const hasW     = !!wEntries;
+    const hasC     = !!cEntries;
+    const hasAny   = hasW || hasC;
+    const isToday  = ds === todayStr;
+    const isFuture = ds > todayStr;
 
     let cls = 'cal-cell cal-day';
-    if (isToday)   cls += ' cal-today';
-    if (isFuture)  cls += ' cal-future';
-    if (hasW)      cls += ' cal-has-workout';
+    if (isToday)  cls += ' cal-today';
+    if (isFuture) cls += ' cal-future';
+    if (hasAny)   cls += ' cal-has-workout';
 
-    const dots = dotCount
-      ? `<div class="cal-dots">${'<span class="cal-dot"></span>'.repeat(dotCount)}</div>`
-      : `<div class="cal-dots"></div>`;
+    // Up to 3 red dots for workouts + 1 teal dot for cardio
+    const wDots = hasW ? Math.min(wEntries.length, 3) : 0;
+    let dotsInner = '<span class="cal-dot"></span>'.repeat(wDots);
+    if (hasC) dotsInner += '<span class="cal-dot-cardio"></span>';
+    const dots = `<div class="cal-dots">${dotsInner}</div>`;
 
-    const tap = hasW ? `onclick="openDayDetail('${ds}')"` : '';
+    const tap = hasAny ? `onclick="openDayDetail('${ds}')"` : '';
     cells += `<div class="${cls}" ${tap}><span class="cal-day-num">${d}</span>${dots}</div>`;
   }
 
@@ -938,11 +950,20 @@ function renderCalendar() {
   document.getElementById('cal-grid').innerHTML = cells;
   document.getElementById('cal-month-title').textContent = `${CAL_MONTHS[calMonth]} ${calYear}`;
 
-  // Stat bar
-  const monthCount = db.workouts.filter(w => w.date.startsWith(monthPfx)).length;
-  const streak     = calculateStreak(db.workouts);
+  // Stat bar — combine both types for streak
+  const monthWorkouts = db.workouts.filter(w => w.date.startsWith(monthPfx)).length;
+  const monthCardio   = cardioLog.filter(s => s.ts.startsWith(monthPfx)).length;
+  const allActivityDates = [
+    ...db.workouts.map(w => ({date: w.date})),
+    ...cardioLog.map(s => ({date: s.ts.split('T')[0]})),
+  ];
+  const streak = calculateStreak(allActivityDates);
+
+  const cardioStr = monthCardio
+    ? `<span class="cal-stat-pill">${monthCardio} cardio this month</span>` : '';
   document.getElementById('cal-stat-bar').innerHTML = `
-    <span class="cal-stat-pill">${monthCount} workout${monthCount !== 1 ? 's' : ''} this month</span>
+    <span class="cal-stat-pill">${monthWorkouts} workout${monthWorkouts !== 1 ? 's' : ''} this month</span>
+    ${cardioStr}
     <span class="cal-stat-pill"><strong>${streak}</strong> day streak</span>
   `;
 
@@ -987,11 +1008,11 @@ function _initCalSwipe() {
 let _ddSwipeY = null;
 
 function openDayDetail(dateStr) {
-  const db      = getDB();
-  const entries = db.workouts
-    .map((w, i) => ({w, i}))
-    .filter(e => e.w.date === dateStr);
-  if (!entries.length) return;
+  const db           = getDB();
+  const cardioLog    = getCardioLog();
+  const wEntries     = db.workouts.map((w, i) => ({w, i})).filter(e => e.w.date === dateStr);
+  const cEntries     = cardioLog.map((s, i) => ({s, i})).filter(({s}) => s.ts.split('T')[0] === dateStr);
+  if (!wEntries.length && !cEntries.length) return;
 
   const d = new Date(dateStr + 'T12:00:00');
   const dateLabel = d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
@@ -999,14 +1020,15 @@ function openDayDetail(dateStr) {
 
   let html = `<div class="dd-date">${dateLabel}</div>`;
 
-  entries.forEach(({w, i}, ei) => {
+  // ── Workout sessions ────────────────────────────────────────
+  wEntries.forEach(({w, i}, ei) => {
     const sets    = w.sets || {};
     const exIds   = Object.keys(sets);
     const nSets   = exIds.reduce((a, id) => a + (sets[id]||[]).length, 0);
     const vol     = exIds.reduce((a, id) =>
       a + (sets[id]||[]).reduce((b, s) => b + (parseFloat(s.weight)||0)*(parseInt(s.reps)||0), 0), 0);
 
-    if (entries.length > 1) html += `<div class="dd-session-lbl">Session ${ei + 1}</div>`;
+    if (wEntries.length > 1) html += `<div class="dd-session-lbl">Session ${ei + 1}</div>`;
 
     html += `
       <div class="dd-meta-row">
@@ -1038,6 +1060,24 @@ function openDayDetail(dateStr) {
         <button class="dd-delete-btn" onclick="deleteWorkoutFromDetail(${i},'${dateStr}')">
           <i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete
         </button>
+      </div>`;
+  });
+
+  // ── Cardio sessions ─────────────────────────────────────────
+  cEntries.forEach(({s, i}) => {
+    html += `
+      <div class="dd-cardio-block">
+        <div class="dd-meta-row">
+          <span class="hc-cardio-tag"><i data-lucide="activity" style="width:11px;height:11px;"></i> Treadmill</span>
+          <span class="dd-chip">${s.duration} min</span>
+          <span class="dd-chip">${s.incline}% incline</span>
+          <span class="dd-chip">${s.calories} kcal</span>
+        </div>
+        <div class="dd-actions">
+          <button class="dd-delete-btn" onclick="deleteCardioFromDetail(${i},'${dateStr}')">
+            <i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete
+          </button>
+        </div>
       </div>`;
   });
 
@@ -1076,6 +1116,16 @@ function deleteWorkoutFromDetail(idx, dateStr) {
   renderHistory();
 }
 
+function deleteCardioFromDetail(idx, dateStr) {
+  if (!confirm('Delete this cardio session?')) return;
+  const log = getCardioLog();
+  log.splice(idx, 1);
+  saveCardioLog(log);
+  showToast('Cardio session deleted');
+  closeDayDetail();
+  renderHistory();
+}
+
 function _ddTouchStart(e) { _ddSwipeY = e.touches[0].clientY; }
 function _ddTouchMove(e) {
   if (_ddSwipeY === null) return;
@@ -1090,13 +1140,19 @@ function _ddTouchEnd(e) {
 
 // ── List view ─────────────────────────────────────────────────
 function renderHistoryListView() {
-  const db = getDB();
-  const allWorkouts = db.workouts;
-  const historyList = document.getElementById('history-list');
+  const db         = getDB();
+  const cardioLog  = getCardioLog();
+  const historyList  = document.getElementById('history-list');
   const historyEmpty = document.getElementById('history-empty');
-  const summaryCard = document.getElementById('history-summary-card');
+  const summaryCard  = document.getElementById('history-summary-card');
 
-  if (!allWorkouts.length) {
+  // Build unified entry list
+  const allEntries = [
+    ...db.workouts.map((w, i) => ({ type: 'workout', date: w.date, ts: w.date, w, i })),
+    ...cardioLog.map((s, i) => ({ type: 'cardio',  date: s.ts.split('T')[0], ts: s.ts, s, i })),
+  ].sort((a, b) => b.ts.localeCompare(a.ts));
+
+  if (!allEntries.length) {
     historyList.innerHTML = '';
     historyEmpty.style.display = 'block';
     summaryCard.style.display = 'none';
@@ -1105,25 +1161,75 @@ function renderHistoryListView() {
   historyEmpty.style.display = 'none';
   summaryCard.style.display = 'block';
 
+  // Stats — combined streak
   const today = new Date();
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - today.getDay());
   weekStart.setHours(0,0,0,0);
   const weekStartStr = weekStart.toISOString().split('T')[0];
-  const thisWeek = allWorkouts.filter(w => w.date >= weekStartStr).length;
-  const streak = calculateStreak(allWorkouts);
+  const thisWeek = allEntries.filter(e => e.date >= weekStartStr).length;
+  const streak   = calculateStreak(allEntries.map(e => ({ date: e.date })));
 
   document.getElementById('history-stats').innerHTML = `
-    <div class="stat-box"><div class="sv">${allWorkouts.length}</div><div class="sl">Total</div></div>
+    <div class="stat-box"><div class="sv">${allEntries.length}</div><div class="sl">Total</div></div>
     <div class="stat-box"><div class="sv">${thisWeek}</div><div class="sl">This week</div></div>
     <div class="stat-box"><div class="sv">${streak}</div><div class="sl">Day streak</div></div>`;
 
-  const indexed = allWorkouts.map((w, i) => ({w, i})).reverse();
-  const filtered = historyFilter === 'all' ? indexed : indexed.filter(({w}) => w.day === historyFilter);
+  // Apply filter
+  let filtered;
+  if (historyFilter === 'all')    filtered = allEntries;
+  else if (historyFilter === 'cardio') filtered = allEntries.filter(e => e.type === 'cardio');
+  else filtered = allEntries.filter(e => e.type === 'workout' && e.w.day === historyFilter);
 
   historyList.innerHTML = '';
-  filtered.forEach(({w, i}) => historyList.appendChild(buildHistoryCard(w, i)));
+  filtered.forEach(entry => {
+    if (entry.type === 'workout') historyList.appendChild(buildHistoryCard(entry.w, entry.i));
+    else                          historyList.appendChild(buildCardioHistoryCard(entry.s, entry.i));
+  });
   lucide.createIcons();
+}
+
+function buildCardioHistoryCard(session, idx) {
+  const div = document.createElement('div');
+  div.className = 'card hcard';
+
+  const date      = session.ts.split('T')[0];
+  const today     = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  let dateStr;
+  if (date === today)          dateStr = 'Today';
+  else if (date === yesterday) dateStr = 'Yesterday';
+  else {
+    const d = new Date(date + 'T12:00:00');
+    dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+  }
+
+  div.innerHTML = `
+    <div class="hc-header" style="cursor:default">
+      <div class="hc-left">
+        <div class="hc-date-row">
+          <span class="hc-date">${dateStr}</span>
+          <span class="hc-cardio-tag">
+            <i data-lucide="activity" style="width:11px;height:11px;"></i> Treadmill
+          </span>
+        </div>
+        <div class="hc-ex-preview">${session.duration} min · ${session.incline}% incline · ${session.calories} kcal</div>
+      </div>
+      <div class="hc-right">
+        <button class="cardio-del-btn" onclick="deleteCardioFromHistory(${idx})"
+          style="color:var(--text-3)" aria-label="Delete cardio session">
+          <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+        </button>
+      </div>
+    </div>`;
+  return div;
+}
+
+function deleteCardioFromHistory(idx) {
+  const log = getCardioLog();
+  log.splice(idx, 1);
+  saveCardioLog(log);
+  renderHistoryListView();
 }
 
 function buildHistoryCard(workout, idx) {

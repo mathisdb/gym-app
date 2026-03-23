@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:lucide.dev)",
-      "WebFetch(domain:unpkg.com)"
+      "WebFetch(domain:unpkg.com)",
+      "Bash(git clone:*)",
+      "Bash(mkdir -p ~/.claude/skills)",
+      "Bash(cp supermemory/.claude/skills/supermemory-integrate.md ~/.claude/skills/)"
     ]
   }
 }
