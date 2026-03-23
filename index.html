@@ -178,6 +178,10 @@
     <i data-lucide="bar-chart-2" class="tab-icon"></i>
     <span>Stats</span>
   </button>
+  <button class="tab-btn" onclick="showTab('cardio')">
+    <i data-lucide="activity" class="tab-icon"></i>
+    <span>Cardio</span>
+  </button>
 </div>
 
 <div class="main">
@@ -373,6 +377,11 @@
     <div id="plan-container"></div>
   </div>
 
+  <!-- CARDIO -->
+  <div class="section" id="tab-cardio">
+    <div id="cardio-content"></div>
+  </div>
+
   <!-- ANALYTICS -->
   <div class="section" id="tab-analytics">
 
@@ -456,6 +465,42 @@
 <div class="guide-sheet" id="guide-sheet">
   <div class="guide-handle-bar"><div class="guide-handle"></div></div>
   <div class="guide-content" id="guide-content"></div>
+</div>
+
+<!-- CARDIO PROFILE MODAL -->
+<div class="cp-modal-back" id="cp-modal-back" onclick="closeCardioProfileModal()"></div>
+<div class="cp-modal" id="cp-modal">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+    <div style="font-size:18px;font-weight:700;">Cardio Profile</div>
+    <button id="cp-modal-close-btn" onclick="closeCardioProfileModal()" style="background:none;border:none;color:var(--text-3);font-size:26px;cursor:pointer;padding:0;line-height:1;display:flex;align-items:center;">&times;</button>
+  </div>
+  <div style="font-size:12px;color:var(--text-3);margin-bottom:18px;">Used to calculate calorie estimates during treadmill sessions.</div>
+  <div style="margin-bottom:12px;">
+    <label style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px;">Weight</label>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <input type="number" id="cp-weight" class="form-input" inputmode="decimal" placeholder="70" min="20" max="300" style="text-align:center;font-size:17px;font-weight:600;">
+      <span style="font-size:13px;color:var(--text-3);min-width:20px;">kg</span>
+    </div>
+  </div>
+  <div style="margin-bottom:12px;">
+    <label style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px;">Height</label>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <input type="number" id="cp-height" class="form-input" inputmode="decimal" placeholder="175" min="100" max="250" style="text-align:center;font-size:17px;font-weight:600;">
+      <span style="font-size:13px;color:var(--text-3);min-width:20px;">cm</span>
+    </div>
+  </div>
+  <div style="margin-bottom:12px;">
+    <label style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px;">Age</label>
+    <input type="number" id="cp-age" class="form-input" inputmode="numeric" placeholder="30" min="10" max="110" style="text-align:center;font-size:17px;font-weight:600;">
+  </div>
+  <div style="margin-bottom:22px;">
+    <label style="font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:8px;">Biological sex</label>
+    <div style="display:flex;gap:8px;">
+      <button class="cp-sex-btn" data-sex="male" onclick="selectCardioSex(this)">Male</button>
+      <button class="cp-sex-btn" data-sex="female" onclick="selectCardioSex(this)">Female</button>
+    </div>
+  </div>
+  <button class="save-btn" onclick="saveCardioProfileForm()">Save profile</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>

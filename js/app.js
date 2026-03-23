@@ -207,7 +207,7 @@ function renderWorkoutChoose() {
 }
 
 function showTab(t) {
-  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile','program','analytics'][i]===t));
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['workout','bodyweight','progress','history','profile','program','analytics','cardio'][i]===t));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(t==='workout') renderWorkoutChoose();
@@ -217,6 +217,7 @@ function showTab(t) {
   if(t==='profile') renderProfile();
   if(t==='program') renderPlanTab();
   if(t==='analytics') renderAnalytics();
+  if(t==='cardio') renderCardio();
 }
 
 function startWorkout(day) {
@@ -2884,6 +2885,211 @@ function startPlanDayWorkout(dayId) {
   document.getElementById('workout-logging').style.display = 'block';
   document.getElementById('workout-day-label').textContent = day.name;
   reRenderExerciseList();
+}
+
+// ============================================================
+// CARDIO TAB
+// ============================================================
+
+function getCardioProfile() {
+  try { return JSON.parse(localStorage.getItem('cardioProfile') || 'null'); }
+  catch { return null; }
+}
+function saveCardioProfile(p) { localStorage.setItem('cardioProfile', JSON.stringify(p)); }
+
+function getCardioLog() {
+  try { return JSON.parse(localStorage.getItem('cardioLog') || '[]'); }
+  catch { return []; }
+}
+function saveCardioLog(log) { localStorage.setItem('cardioLog', JSON.stringify(log)); }
+
+let cardioCalManual = false;
+
+function renderCardio() {
+  const profile = getCardioProfile();
+  const container = document.getElementById('cardio-content');
+
+  if (!profile) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:52px 16px 24px;">
+        <div style="font-size:48px;margin-bottom:16px;">🚶</div>
+        <div style="font-size:22px;font-weight:700;margin-bottom:8px;letter-spacing:-0.3px;">Treadmill Tracker</div>
+        <div style="font-size:14px;color:var(--text-3);margin-bottom:28px;line-height:1.6;">Set up your profile once so we can calculate accurate calorie estimates.</div>
+        <button class="save-btn" onclick="openCardioProfileModal(true)" style="display:flex;align-items:center;justify-content:center;gap:8px;max-width:260px;margin:0 auto;">
+          <i data-lucide="user" style="width:16px;height:16px;"></i> Set up profile
+        </button>
+      </div>`;
+    lucide.createIcons();
+    return;
+  }
+
+  const log = getCardioLog();
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const recent = log.filter(s => new Date(s.ts).getTime() >= cutoff);
+  const totalSessions = recent.length;
+  const totalMinutes = recent.reduce((a, s) => a + (s.duration || 0), 0);
+  const totalCalories = recent.reduce((a, s) => a + (s.calories || 0), 0);
+
+  const rows = log.length === 0
+    ? '<div class="empty">No sessions logged yet</div>'
+    : [...log].reverse().map((s, i) => {
+        const origIdx = log.length - 1 - i;
+        const d = new Date(s.ts);
+        const dateStr = d.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'});
+        return `<div class="cardio-row">
+          <div class="cardio-row-info">
+            <div class="cardio-row-date">${dateStr}</div>
+            <div class="cardio-row-stats">
+              <div><b>${s.duration}</b> <span>min</span></div>
+              <div><b>${s.incline}</b> <span>%</span></div>
+              <div><b>${s.calories}</b> <span>kcal</span></div>
+            </div>
+          </div>
+          <button class="cardio-del-btn" onclick="deleteCardioSession(${origIdx})" aria-label="Delete session">
+            <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+          </button>
+        </div>`;
+      }).join('');
+
+  container.innerHTML = `
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="card-title" style="margin-bottom:0">30-Day Summary</div>
+        <button onclick="openCardioProfileModal(false)" style="background:none;border:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;padding:0;">
+          <i data-lucide="settings" style="width:12px;height:12px;"></i> Edit profile
+        </button>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sv">${totalSessions}</div><div class="sl">Sessions</div></div>
+        <div class="stat-box"><div class="sv">${totalMinutes}</div><div class="sl">Minutes</div></div>
+        <div class="stat-box"><div class="sv">${totalCalories}</div><div class="sl">Calories</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Log treadmill walk</div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px;">Duration</div>
+        <div class="cardio-field-row">
+          <input type="number" id="cardio-duration" class="form-input cardio-num-input" inputmode="decimal" placeholder="30" min="1" max="300" oninput="cardioUpdateCalories()">
+          <span class="cardio-field-unit">min</span>
+        </div>
+      </div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px;">Incline</div>
+        <div class="cardio-field-row">
+          <input type="number" id="cardio-incline" class="form-input cardio-num-input" inputmode="decimal" placeholder="10" min="0" max="30" oninput="cardioUpdateCalories()">
+          <span class="cardio-field-unit">%</span>
+        </div>
+      </div>
+      <div style="margin-bottom:18px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+          Calories <span class="cardio-est-badge">estimated</span>
+        </div>
+        <div class="cardio-field-row">
+          <input type="number" id="cardio-calories" class="form-input cardio-num-input" inputmode="decimal" placeholder="—" min="0" oninput="cardioCalManualOverride()">
+          <span class="cardio-field-unit">kcal</span>
+        </div>
+      </div>
+      <button class="save-btn" onclick="logCardioSession()" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+        <i data-lucide="check" style="width:18px;height:18px;"></i> Log session
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Past sessions</div>
+      ${rows}
+    </div>
+  `;
+  lucide.createIcons();
+}
+
+function cardioUpdateCalories() {
+  if (cardioCalManual) return;
+  const duration = parseFloat(document.getElementById('cardio-duration').value) || 0;
+  const incline = parseFloat(document.getElementById('cardio-incline').value) || 0;
+  const profile = getCardioProfile();
+  if (!profile || duration <= 0) return;
+  const met = 2.5 + incline * 0.15;
+  const cal = Math.round(met * profile.weight * (duration / 60));
+  document.getElementById('cardio-calories').value = cal > 0 ? cal : '';
+}
+
+function cardioCalManualOverride() {
+  cardioCalManual = document.getElementById('cardio-calories').value.trim() !== '';
+}
+
+function logCardioSession() {
+  const duration = parseFloat(document.getElementById('cardio-duration').value);
+  const inclineVal = document.getElementById('cardio-incline').value;
+  const incline = inclineVal === '' ? 0 : parseFloat(inclineVal);
+  const caloriesRaw = document.getElementById('cardio-calories').value;
+
+  if (!duration || duration <= 0) { showToast('Enter a duration'); return; }
+  if (isNaN(incline) || incline < 0 || incline > 30) { showToast('Incline must be 0–30%'); return; }
+
+  let calories;
+  if (caloriesRaw && caloriesRaw.trim() !== '') {
+    calories = Math.round(parseFloat(caloriesRaw));
+  } else {
+    const profile = getCardioProfile();
+    const met = 2.5 + incline * 0.15;
+    calories = Math.round(met * (profile ? profile.weight : 70) * (duration / 60));
+  }
+
+  const log = getCardioLog();
+  log.push({ ts: new Date().toISOString(), duration: Math.round(duration), incline, calories });
+  saveCardioLog(log);
+  cardioCalManual = false;
+  showToast('Session logged!');
+  renderCardio();
+}
+
+function deleteCardioSession(idx) {
+  const log = getCardioLog();
+  log.splice(idx, 1);
+  saveCardioLog(log);
+  renderCardio();
+}
+
+function openCardioProfileModal(isNew) {
+  const profile = getCardioProfile() || {};
+  document.getElementById('cp-weight').value = profile.weight || '';
+  document.getElementById('cp-height').value = profile.height || '';
+  document.getElementById('cp-age').value = profile.age || '';
+  document.querySelectorAll('.cp-sex-btn').forEach(b =>
+    b.classList.toggle('selected', b.dataset.sex === (profile.sex || ''))
+  );
+  document.getElementById('cp-modal-close-btn').style.display = isNew ? 'none' : '';
+  document.getElementById('cp-modal-back').classList.add('open');
+  document.getElementById('cp-modal').classList.add('open');
+}
+
+function closeCardioProfileModal() {
+  document.getElementById('cp-modal-back').classList.remove('open');
+  document.getElementById('cp-modal').classList.remove('open');
+}
+
+function selectCardioSex(el) {
+  document.querySelectorAll('.cp-sex-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function saveCardioProfileForm() {
+  const weight = parseFloat(document.getElementById('cp-weight').value);
+  const height = parseFloat(document.getElementById('cp-height').value);
+  const age = parseInt(document.getElementById('cp-age').value);
+  const sex = document.querySelector('.cp-sex-btn.selected')?.dataset.sex || '';
+
+  if (!weight || weight < 20 || weight > 300) { showToast('Enter a valid weight (20–300 kg)'); return; }
+  if (!height || height < 100 || height > 250) { showToast('Enter a valid height (100–250 cm)'); return; }
+  if (!age || age < 10 || age > 110) { showToast('Enter a valid age'); return; }
+  if (!sex) { showToast('Please select a biological sex'); return; }
+
+  saveCardioProfile({ weight, height, age, sex });
+  closeCardioProfileModal();
+  showToast('Profile saved');
+  renderCardio();
 }
 
 // ============================================================
