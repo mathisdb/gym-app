@@ -1522,7 +1522,7 @@ function validateObStep() {
       if (!obData.equipment.length) { showToast('Select at least one equipment type'); return false; }
       break;
     case 5: {
-      const bwVal = parseFloat(document.getElementById('ob-bw-input').value);
+      const bwVal = parseFloat(String(document.getElementById('ob-bw-input').value).replace(',','.'));
       if (!bwVal || bwVal < 30 || bwVal > 300) { showToast('Enter a valid weight (30–300 kg)'); return false; }
       obData.bodyWeight = bwVal;
       break;
@@ -2948,6 +2948,14 @@ function saveCardioLog(log) { localStorage.setItem('cardioLog', JSON.stringify(l
 
 let cardioCalManual = false;
 
+// Resolve body weight for calorie calc: prefer latest weight log entry, fall back to cardio profile
+function getWeightForCalcKg() {
+  const db = getDB();
+  if (db.bw && db.bw.length) return db.bw[db.bw.length - 1].weight;
+  const profile = getCardioProfile();
+  return profile ? profile.weight : null;
+}
+
 function renderCardio() {
   const profile = getCardioProfile();
   const container = document.getElementById('cardio-content');
@@ -3010,18 +3018,21 @@ function renderCardio() {
     </div>
 
     <div class="card">
-      <div class="card-title">Log treadmill walk</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="card-title" style="margin-bottom:0">Log treadmill walk</div>
+        ${(()=>{ const w=getWeightForCalcKg(); return w ? `<span style="font-size:11px;color:var(--text-3);">using ${w} kg</span>` : ''; })()}
+      </div>
       <div style="margin-bottom:14px;">
         <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px;">Duration</div>
         <div class="cardio-field-row">
-          <input type="number" id="cardio-duration" class="form-input cardio-num-input" inputmode="decimal" placeholder="30" min="1" max="300" oninput="cardioUpdateCalories()">
+          <input type="text" id="cardio-duration" class="form-input cardio-num-input" inputmode="decimal" placeholder="30" oninput="cardioUpdateCalories()">
           <span class="cardio-field-unit">min</span>
         </div>
       </div>
       <div style="margin-bottom:14px;">
         <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px;">Incline</div>
         <div class="cardio-field-row">
-          <input type="number" id="cardio-incline" class="form-input cardio-num-input" inputmode="decimal" placeholder="10" min="0" max="30" oninput="cardioUpdateCalories()">
+          <input type="text" id="cardio-incline" class="form-input cardio-num-input" inputmode="decimal" placeholder="10" oninput="cardioUpdateCalories()">
           <span class="cardio-field-unit">%</span>
         </div>
       </div>
@@ -3030,7 +3041,7 @@ function renderCardio() {
           Calories <span class="cardio-est-badge">estimated</span>
         </div>
         <div class="cardio-field-row">
-          <input type="number" id="cardio-calories" class="form-input cardio-num-input" inputmode="decimal" placeholder="—" min="0" oninput="cardioCalManualOverride()">
+          <input type="text" id="cardio-calories" class="form-input cardio-num-input" inputmode="decimal" placeholder="—" oninput="cardioCalManualOverride()">
           <span class="cardio-field-unit">kcal</span>
         </div>
       </div>
@@ -3049,12 +3060,13 @@ function renderCardio() {
 
 function cardioUpdateCalories() {
   if (cardioCalManual) return;
-  const duration = parseFloat(document.getElementById('cardio-duration').value) || 0;
-  const incline = parseFloat(document.getElementById('cardio-incline').value) || 0;
-  const profile = getCardioProfile();
-  if (!profile || duration <= 0) return;
+  const norm = s => parseFloat(String(s).replace(',', '.')) || 0;
+  const duration = norm(document.getElementById('cardio-duration').value);
+  const incline  = norm(document.getElementById('cardio-incline').value);
+  const weight   = getWeightForCalcKg();
+  if (!weight || duration <= 0) return;
   const met = 2.5 + incline * 0.15;
-  const cal = Math.round(met * profile.weight * (duration / 60));
+  const cal = Math.round(met * weight * (duration / 60));
   document.getElementById('cardio-calories').value = cal > 0 ? cal : '';
 }
 
@@ -3063,21 +3075,22 @@ function cardioCalManualOverride() {
 }
 
 function logCardioSession() {
-  const duration = parseFloat(document.getElementById('cardio-duration').value);
-  const inclineVal = document.getElementById('cardio-incline').value;
-  const incline = inclineVal === '' ? 0 : parseFloat(inclineVal);
-  const caloriesRaw = document.getElementById('cardio-calories').value;
+  const norm = s => parseFloat(String(s).replace(',', '.'));
+  const duration  = norm(document.getElementById('cardio-duration').value);
+  const inclineRaw = document.getElementById('cardio-incline').value.trim();
+  const incline    = inclineRaw === '' ? 0 : norm(inclineRaw);
+  const caloriesRaw = document.getElementById('cardio-calories').value.trim();
 
   if (!duration || duration <= 0) { showToast('Enter a duration'); return; }
   if (isNaN(incline) || incline < 0 || incline > 30) { showToast('Incline must be 0–30%'); return; }
 
   let calories;
-  if (caloriesRaw && caloriesRaw.trim() !== '') {
-    calories = Math.round(parseFloat(caloriesRaw));
+  if (caloriesRaw !== '') {
+    calories = Math.round(norm(caloriesRaw));
   } else {
-    const profile = getCardioProfile();
+    const weight = getWeightForCalcKg() || 70;
     const met = 2.5 + incline * 0.15;
-    calories = Math.round(met * (profile ? profile.weight : 70) * (duration / 60));
+    calories = Math.round(met * weight * (duration / 60));
   }
 
   const log = getCardioLog();
@@ -3119,8 +3132,8 @@ function selectCardioSex(el) {
 }
 
 function saveCardioProfileForm() {
-  const weight = parseFloat(document.getElementById('cp-weight').value);
-  const height = parseFloat(document.getElementById('cp-height').value);
+  const weight = parseFloat(String(document.getElementById('cp-weight').value).replace(',','.'));
+  const height = parseFloat(String(document.getElementById('cp-height').value).replace(',','.'));
   const age = parseInt(document.getElementById('cp-age').value);
   const sex = document.querySelector('.cp-sex-btn.selected')?.dataset.sex || '';
 
